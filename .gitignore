@@ -1,0 +1,14 @@
+# for VSCode
+.cache/
+.vscode/
+build/
+
+# for CLion
+.idea/
+cmake-build-debug/
+cmake-build-release/
+
+# for Visual Studio
+.vs/
+out/
+CMakeSettings.json
