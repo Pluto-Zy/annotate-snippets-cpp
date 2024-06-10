@@ -35,6 +35,16 @@ class StyledStringView {
     };
 
 public:
+    /// Constructs an empty `StyledStringView`.
+    StyledStringView() :
+        // clang-format off
+        content_(),
+        styled_parts_ {
+            { .start_index = 0, .style = Style::Auto },
+            { .start_index = 0, .style = Style::Auto },
+        } { }
+    // clang-format on
+
     /// Constructs a `StyledStringView` whose content is `content` and the style of the whole string
     /// is `style`.
     static auto styled(std::string_view content, Style style) -> StyledStringView {
@@ -66,6 +76,10 @@ public:
 
     auto content() const -> std::string_view {
         return content_;
+    }
+
+    auto empty() const -> bool {
+        return content_.empty();
     }
 
     /// Sets the style of the substring in range `[start_index, end_index)`. Any existing styles for

@@ -20,6 +20,12 @@ TEST(StyledStringViewTest, SingleLineWithStyle) {
     }
 
     {
+        auto const lines = ants::StyledStringView().styled_line_parts();
+        LineParts const expected {};
+        EXPECT_EQ(lines, expected);
+    }
+
+    {
         auto const lines = ants::StyledStringView::inferred("abcdefg")
                                .with_style(ants::Style::Default, 0, 7)
                                .styled_line_parts();
