@@ -1,0 +1,91 @@
+name: build-and-test
+
+on: [push, pull_request]
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-ubuntu:
+    strategy:
+      matrix:
+        os: [ ubuntu-22.04 ]
+        compiler: [ g++-11, g++-12, clang++-13, clang++-14, clang++-15 ]
+        build_type: [ Debug, Release ]
+
+    name: Build and Test on Ubuntu
+    runs-on: ${{matrix.os}}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+            cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
+                  -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                  -DCMAKE_CXX_COMPILER=${{matrix.compiler}} \
+                  -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
+
+      - name: Build
+        run: |
+            threads=`nproc`
+            cmake --build "${{github.workspace}}/build" \
+                  --config ${{matrix.build_type}} --parallel $threads
+
+      - name: Test
+        working-directory: ${{github.workspace}}/build
+        run: ctest -C ${{matrix.build_type}} --output-on-failure
+
+  build-macos:
+    strategy:
+      matrix:
+        os: [ macos-latest ]
+        build_type: [ Debug, Release ]
+
+    name: Build and Test on MacOS
+    runs-on: ${{matrix.os}}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+            cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
+                  -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                  -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
+
+      - name: Build
+        run: |
+            threads=`sysctl -n hw.logicalcpu`
+            cmake --build "${{github.workspace}}/build" \
+                  --config ${{matrix.build_type}} --parallel $threads
+
+      - name: Test
+        working-directory: ${{github.workspace}}/build
+        run: ctest -C ${{matrix.build_type}} --output-on-failure
+
+  build-windows:
+    strategy:
+      matrix:
+        build_type: [ Debug, Release ]
+
+    name: Build and Test on Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+            cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
+                  -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                  -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
+
+      - name: Build
+        run: |
+            $threads = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
+            cmake --build "${{github.workspace}}/build" `
+                  --config ${{matrix.build_type}} --parallel $threads
+        shell: pwsh
+
+      - name: Test
+        working-directory: ${{github.workspace}}/build
+        run: ctest -C ${{matrix.build_type}} --output-on-failure
