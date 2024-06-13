@@ -85,7 +85,7 @@ auto compute_line_offset(
 
     // Points to the line closest to and immediately preceding the target line.
     auto const closest_prev_iter =
-        std::ranges::prev(closest_next_iter, -1, line_offset_cache.begin());
+        std::ranges::prev(closest_next_iter, 1, line_offset_cache.begin());
 
     if (closest_next_iter != line_offset_cache.end()
         && closest_prev_iter != line_offset_cache.end()) {
@@ -203,7 +203,7 @@ auto byte_offset_to_line(
     // Points to the cached line closest to and preceding `byte_offset`. If the actual line
     // containing `byte_offset` is already in the cache, it points to that line.
     auto const closest_prev_iter =
-        std::ranges::prev(closest_next_iter, -1, line_offset_cache.begin());
+        std::ranges::prev(closest_next_iter, 1, line_offset_cache.begin());
 
     if (closest_prev_iter != line_offset_cache.end()
         && closest_next_iter != line_offset_cache.end()) {
