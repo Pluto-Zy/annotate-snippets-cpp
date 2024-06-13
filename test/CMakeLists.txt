@@ -1,5 +1,5 @@
 include(AddGoogleTest)
 
-add_executable(annotate_snippets_tests styled_string_view_test.cpp)
+add_executable(annotate_snippets_tests styled_string_view_test.cpp annotated_source_test.cpp)
 target_link_libraries(annotate_snippets_tests PRIVATE annotate_snippets gtest_main)
 gtest_discover_tests(annotate_snippets_tests)
