@@ -4,7 +4,7 @@
 #include "gtest/gtest.h"
 
 namespace {
-using LineParts = std::vector<std::vector<ants::StyledStringPart>>;
+using LineParts = std::vector<std::vector<ants::StyledStringViewPart>>;
 
 TEST(StyledStringViewTest, SingleLineWithStyle) {
     {
