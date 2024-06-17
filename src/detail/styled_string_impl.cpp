@@ -1,4 +1,4 @@
-#include "annotate_snippets/styled_string_view.hpp"
+#include "annotate_snippets/detail/styled_string_impl.hpp"
 
 #include <algorithm>
 #include <initializer_list>
@@ -7,8 +7,8 @@
 #include <utility>
 #include <vector>
 
-namespace ants {
-void StyledStringView::set_style(Style style, std::size_t start_index, std::size_t end_index) {
+namespace ants::detail {
+void StyledStringImpl::set_style(Style style, std::size_t start_index, std::size_t end_index) {
     if (start_index == end_index) {
         // Don't modify anything if the range is empty.
         return;
@@ -46,24 +46,26 @@ void StyledStringView::set_style(Style style, std::size_t start_index, std::size
     // clang-format on
 }
 
-auto StyledStringView::styled_line_parts() const -> std::vector<std::vector<StyledStringPart>> {
-    std::vector<std::vector<StyledStringPart>> lines;
-    // Find the '\n' and split the content_ into multiple lines. We don't use std::ranges::split
+auto StyledStringImpl::styled_line_parts(  //
+    std::string_view content
+) const -> std::vector<std::vector<StyledStringViewPart>> {
+    std::vector<std::vector<StyledStringViewPart>> lines;
+    // Find the '\n' and split the content into multiple lines. We don't use std::ranges::split
     // because we need to preserve the '\n' characters.
-    for (std::size_t start = 0; start != content_.size();) {
-        std::size_t const pos = content_.find('\n', start);
+    for (std::size_t start = 0; start != content.size();) {
+        std::size_t const pos = content.find('\n', start);
         if (pos == std::string_view::npos) {
             // We cannot find '\n', so we add the rest of the string as a new line to the result and
             // exit the loop.
             lines.push_back({
-                { .content = content_.substr(start), .style {} }
+                { .content = content.substr(start), .style {} }
             });
             break;
         } else {
             lines.push_back({
                 // Note that the substring contains newline characters here, which will be removed
                 // in subsequent operations.
-                { .content = content_.substr(start, pos - start + 1), .style {} }
+                { .content = content.substr(start, pos - start + 1), .style {} }
             });
             start = pos + 1;
         }
@@ -87,7 +89,7 @@ auto StyledStringView::styled_line_parts() const -> std::vector<std::vector<Styl
         for (; cur_line_index != lines.size()
              && part_end - part_beg >= lines[cur_line_index].back().content.size();
              ++cur_line_index) {
-            StyledStringPart& unprocessed_part = lines[cur_line_index].back();
+            StyledStringViewPart& unprocessed_part = lines[cur_line_index].back();
             std::string_view& unprocessed_content = unprocessed_part.content;
 
             // Update the style of the unprocessed part.
@@ -132,15 +134,16 @@ auto StyledStringView::styled_line_parts() const -> std::vector<std::vector<Styl
         // The current style ends in the middle of the string to be processed. We split the string
         // into two parts and insert the latter part as a new unprocessed string into the end of the
         // container.
-        StyledStringPart& old_part = lines[cur_line_index].back();
+        StyledStringViewPart& old_part = lines[cur_line_index].back();
         old_part.style = part_style;
 
         std::string_view const rest_content =
             std::exchange(old_part.content, old_part.content.substr(0, part_end - part_beg))
                 .substr(part_end - part_beg);
-        lines[cur_line_index].push_back(StyledStringPart { .content = rest_content, .style {} });
+        lines[cur_line_index].push_back(StyledStringViewPart { .content = rest_content, .style {} }
+        );
     }
 
     return lines;
 }
-}  // namespace ants
+}  // namespace ants::detail
