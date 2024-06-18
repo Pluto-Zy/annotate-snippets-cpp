@@ -27,6 +27,14 @@ TEST(StyledStringViewTest, SingleLineWithStyle) {
 
     {
         auto const lines = ants::StyledStringView::inferred("abcdefg")
+                               .with_style(ants::Style::Auto, 2, 4)
+                               .styled_line_parts();
+        LineParts const expected { { { .content = "abcdefg", .style = ants::Style::Auto } } };
+        EXPECT_EQ(lines, expected);
+    }
+
+    {
+        auto const lines = ants::StyledStringView::inferred("abcdefg")
                                .with_style(ants::Style::Default, 0, 7)
                                .styled_line_parts();
         LineParts const expected { { { .content = "abcdefg", .style = ants::Style::Default } } };
@@ -48,12 +56,44 @@ TEST(StyledStringViewTest, SingleLineWithStyle) {
 
     {
         auto const lines = ants::StyledStringView::inferred("abcdefg")
+                               .with_style(ants::Style::Default, 0, 3)
+                               .with_style(ants::Style::Default, 3, 7)
+                               .styled_line_parts();
+        LineParts const expected { { { .content = "abcdefg", .style = ants::Style::Default } } };
+        EXPECT_EQ(lines, expected);
+    }
+
+    {
+        auto const lines = ants::StyledStringView::inferred("abcdefg")
+                               .with_style(ants::Style::Default, 0, 3)
+                               .with_style(ants::Style::Default, 2, 7)
+                               .styled_line_parts();
+        LineParts const expected { { { .content = "abcdefg", .style = ants::Style::Default } } };
+        EXPECT_EQ(lines, expected);
+    }
+
+    {
+        auto const lines = ants::StyledStringView::inferred("abcdefg")
                                .with_style(ants::Style::Default, 3, 7)
                                .styled_line_parts();
         // clang-format off
         LineParts const expected { {
             { .content = "abc", .style = ants::Style::Auto },
             { .content = "defg", .style = ants::Style::Default },
+        } };
+        // clang-format on
+        EXPECT_EQ(lines, expected);
+    }
+
+    {
+        auto const lines = ants::StyledStringView::inferred("abcdefg")
+                               .with_style(ants::Style::Default, 3, 7)
+                               .with_style(ants::Style::Default, 2, 3)
+                               .styled_line_parts();
+        // clang-format off
+        LineParts const expected { {
+            { .content = "ab", .style = ants::Style::Auto },
+            { .content = "cdefg", .style = ants::Style::Default },
         } };
         // clang-format on
         EXPECT_EQ(lines, expected);
@@ -83,6 +123,36 @@ TEST(StyledStringViewTest, SingleLineWithStyle) {
             { .content = "abc", .style = ants::Style::Default },
             { .content = "de", .style = ants::Style::Auto },
             { .content = "fg", .style = ants::Style::Highlight },
+        } };
+        // clang-format on
+        EXPECT_EQ(lines, expected);
+    }
+
+    {
+        auto const lines = ants::StyledStringView::inferred("abcdefg")
+                               .with_style(ants::Style::Default, 0, 3)
+                               .with_style(ants::Style::Highlight, 5, 7)
+                               .with_style(ants::Style::Highlight, 2, 5)
+                               .styled_line_parts();
+        // clang-format off
+        LineParts const expected { {
+            { .content = "ab", .style = ants::Style::Default },
+            { .content = "cdefg", .style = ants::Style::Highlight },
+        } };
+        // clang-format on
+        EXPECT_EQ(lines, expected);
+    }
+
+    {
+        auto const lines = ants::StyledStringView::inferred("abcdefg")
+                               .with_style(ants::Style::Default, 0, 3)
+                               .with_style(ants::Style::Highlight, 5, 7)
+                               .with_style(ants::Style::Highlight, 3, 5)
+                               .styled_line_parts();
+        // clang-format off
+        LineParts const expected { {
+            { .content = "abc", .style = ants::Style::Default },
+            { .content = "defg", .style = ants::Style::Highlight },
         } };
         // clang-format on
         EXPECT_EQ(lines, expected);
