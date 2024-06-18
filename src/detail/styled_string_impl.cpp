@@ -71,18 +71,33 @@ auto StyledStringImpl::styled_line_parts(  //
         }
     }
 
+    // Merges parts with the same style within `styled_parts_`.
+    // It is considered easier and safer to merge parts with the same style here rather than
+    // enforcing that modifiers cannot insert parts with the same style.
+    std::vector<StyledPart> merged_parts;
+    merged_parts.reserve(styled_parts_.size());
+    merged_parts.push_back(styled_parts_.front());
+
+    for (std::size_t part_index = 1; part_index != styled_parts_.size() - 1; ++part_index) {
+        if (styled_parts_[part_index].style != styled_parts_[part_index - 1].style) {
+            merged_parts.push_back(styled_parts_[part_index]);
+        }
+    }
+
+    merged_parts.push_back(styled_parts_.back());
+
     // Now we need to further split each line into substrings consisting of consecutive characters
     // of the same style. We process line by line, and for each line, we always set the unprocessed
     // string at the last element of the vector.
 
     // The index of the line we are currently processing.
     std::size_t cur_line_index = 0;
-    for (std::size_t part_index = 0; part_index != styled_parts_.size() - 1; ++part_index) {
+    for (std::size_t part_index = 0; part_index != merged_parts.size() - 1; ++part_index) {
         // We must use two adjacent StyledPart objects to determine a substring, as stated in the
         // documentation comment for the StyledPart class.
-        std::size_t part_beg = styled_parts_[part_index].start_index;
-        std::size_t const part_end = styled_parts_[part_index + 1].start_index;
-        Style const part_style = styled_parts_[part_index].style;
+        std::size_t part_beg = merged_parts[part_index].start_index;
+        std::size_t const part_end = merged_parts[part_index + 1].start_index;
+        Style const part_style = merged_parts[part_index].style;
 
         // The current part covers the entire unprocessed string of this line, so we process the
         // remaining string and move to the next line.
@@ -140,7 +155,8 @@ auto StyledStringImpl::styled_line_parts(  //
         std::string_view const rest_content =
             std::exchange(old_part.content, old_part.content.substr(0, part_end - part_beg))
                 .substr(part_end - part_beg);
-        lines[cur_line_index].push_back(StyledStringViewPart { .content = rest_content, .style {} }
+        lines[cur_line_index].push_back(  //
+            StyledStringViewPart { .content = rest_content, .style {} }
         );
     }
 
