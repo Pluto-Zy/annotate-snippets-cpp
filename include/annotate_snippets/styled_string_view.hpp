@@ -134,6 +134,8 @@ public:
 
 private:
     std::string_view content_;
+
+    friend class StyledString;
 };
 }  // namespace ants
 
