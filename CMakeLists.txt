@@ -19,8 +19,13 @@ option(ANNOTATE_SNIPPETS_ENABLE_TESTING "Enable testing of the annotate-snippets
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include(AddUnicodeDisplayWidth)
+
 add_library(annotate_snippets src/annotated_source.cpp src/detail/styled_string_impl.cpp)
-target_include_directories(annotate_snippets PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(annotate_snippets PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+    ${unicode_display_width_SOURCE_DIR}/include
+)
 
 if (ANNOTATE_SNIPPETS_ENABLE_TESTING)
     enable_testing()
