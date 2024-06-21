@@ -342,4 +342,68 @@ TEST(StyledStringTest, AppendNewline) {
         // clang-format on
     }
 }
+
+TEST(StyledStringTest, AppendSpace) {
+    {
+        auto str = ants::StyledString();
+        str.append_spaces(0);
+        EXPECT_TRUE(str.empty());
+        EXPECT_EQ(str.styled_line_parts(), LineParts {});
+
+        str.append_spaces(3);
+        EXPECT_EQ(str.content(), "   ");
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { { { .content = "   ", .style = ants::Style::Default } } })
+        );
+
+        str.append_spaces(2);
+        EXPECT_EQ(str.content(), "     ");
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { { { .content = "     ", .style = ants::Style::Default } } })
+        );
+
+        str.append("Hello", ants::Style::Auto);
+        str.append_spaces(3);
+        EXPECT_EQ(str.content(), "     Hello   ");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "     ", .style = ants::Style::Default },
+                { .content = "Hello", .style = ants::Style::Auto },
+                { .content = "   ", .style = ants::Style::Default },
+            } })
+        );
+        // clang-format on
+    }
+
+    {
+        auto str = ants::StyledString::inferred("Hello");
+        str.append_spaces(1);
+        EXPECT_EQ(str.content(), "Hello ");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "Hello", .style = ants::Style::Auto },
+                { .content = " ", .style = ants::Style::Default },
+            } })
+        );
+        // clang-format on
+
+        str.append("World", ants::Style::Default);
+        EXPECT_EQ(str.content(), "Hello World");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "Hello", .style = ants::Style::Auto },
+                { .content = " World", .style = ants::Style::Default },
+            } })
+        );
+        // clang-format on
+    }
+}
 }  // namespace
