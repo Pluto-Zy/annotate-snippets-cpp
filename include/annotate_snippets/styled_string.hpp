@@ -115,16 +115,8 @@ public:
     /// Appends the string `content` to the end of the current `StyledString` with the specified
     /// `style`. Existing parts of the `StyledString` remain unaffected.
     void append(std::string_view content, Style style) {
-        if (content_.empty()) {
-            // If the original string is empty, `styled_parts_` contains two elements with
-            // `start_index` both set to 0; we need to remove one of them.
-            styled_parts_.resize(1);
-        }
-
-        styled_parts_.back().style = style;
         content_.append(content);
-
-        styled_parts_.push_back(StyledPart { .start_index = content_.size(), .style {} });
+        append_styled_part_impl(style);
     }
 
     /// Appends the string `content` to the end of the current `StyledString` with the specified
@@ -164,6 +156,15 @@ public:
         styled_parts_.back().start_index = content_.size();
     }
 
+    /// Appends `count` number of spaces at the end of the string, with each space styled as
+    /// `Style::Default`.
+    void append_spaces(std::size_t count) {
+        if (count != 0) {
+            content_.append(count, ' ');
+            append_styled_part_impl(ants::Style::Default);
+        }
+    }
+
     /// Splits `content` into several `StyledStringPart`s by line and style, and puts substrings
     /// consisting of consecutive characters of the same style into one `StyledStringPart`. If there
     /// are multiple lines in a substring, splits each line into a separate `StyledStringPart`.
@@ -192,6 +193,23 @@ public:
 
 private:
     std::string content_;
+
+    /// Adds a new item to the existing `styled_parts_` array, so that the part of `content_` not
+    /// covered by `styled_parts_` has the style `style`.
+    ///
+    /// The usual usage is to first expand `content_`, and then use this method to set the style of
+    /// the newly added part to `style`.
+    void append_styled_part_impl(Style style) {
+        if (styled_parts_.back().start_index == 0) {
+            // If the original string is empty, `styled_parts_` contains two elements with
+            // `start_index` both set to 0; we need to remove one of them.
+            styled_parts_.resize(1);
+        }
+
+        styled_parts_.back().style = style;
+        // Insert a new style part.
+        styled_parts_.push_back(StyledPart { .start_index = content_.size(), .style {} });
+    }
 };
 }  // namespace ants
 
