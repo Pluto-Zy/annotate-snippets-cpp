@@ -93,6 +93,10 @@ public:
         return line_offsets_;
     }
 
+    auto line_offsets_cache() -> auto& {
+        return line_offsets_;
+    }
+
     /// Returns the offset of the first byte of line `line`. If this information is already cached
     /// in `line_offsets_` then the cached result is returned, otherwise the result will be
     /// calculated in place and cached.
@@ -125,7 +129,15 @@ public:
         return primary_spans_;
     }
 
+    auto primary_spans() -> std::vector<LabeledSpan>& {
+        return primary_spans_;
+    }
+
     auto secondary_spans() const -> std::vector<LabeledSpan> const& {
+        return secondary_spans_;
+    }
+
+    auto secondary_spans() -> std::vector<LabeledSpan>& {
         return secondary_spans_;
     }
 
