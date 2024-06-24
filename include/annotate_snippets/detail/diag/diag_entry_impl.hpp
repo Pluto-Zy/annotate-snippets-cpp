@@ -32,6 +32,10 @@ public:
         return level_;
     }
 
+    auto level() -> Level& {
+        return level_;
+    }
+
     void set_level(Level level) {
         level_ = std::move(level);
     }
@@ -65,6 +69,10 @@ public:
     }
 
     auto diag_message() const -> StyledStringView const& {
+        return diag_message_;
+    }
+
+    auto diag_message() -> StyledStringView& {
         return diag_message_;
     }
 
