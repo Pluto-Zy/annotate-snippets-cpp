@@ -4,6 +4,7 @@
 #include "annotate_snippets/detail/diag/diag_entry_impl.hpp"
 #include "annotate_snippets/detail/diag/level.hpp"
 
+#include <concepts>
 #include <vector>
 
 namespace ants {
@@ -51,6 +52,40 @@ public:
 
     auto secondary_diag_entries() -> std::vector<DiagEntry<Level>>& {
         return secondary_diags_;
+    }
+
+    void add_sub_diag_entry(DiagEntry<Level> entry) {
+        secondary_diags_.push_back(std::move(entry));
+    }
+
+    template <class... Args>
+        requires std::constructible_from<DiagEntry<Level>, Args...>
+    void add_sub_diag_entry(Args&&... args) {
+        secondary_diags_.emplace_back(std::forward<Args>(args)...);
+    }
+
+    auto with_sub_diag_entry(DiagEntry<Level> entry) & -> Diag& {
+        add_sub_diag_entry(std::move(entry));
+        return *this;
+    }
+
+    template <class... Args>
+        requires std::constructible_from<DiagEntry<Level>, Args...>
+    auto with_sub_diag_entry(Args&&... args) & -> Diag& {
+        add_sub_diag_entry(std::forward<Args>(args)...);
+        return *this;
+    }
+
+    auto with_sub_diag_entry(DiagEntry<Level> entry) && -> Diag&& {
+        add_sub_diag_entry(std::move(entry));
+        return std::move(*this);
+    }
+
+    template <class... Args>
+        requires std::constructible_from<DiagEntry<Level>, Args...>
+    auto with_sub_diag_entry(Args&&... args) && -> Diag&& {
+        add_sub_diag_entry(std::forward<Args>(args)...);
+        return std::move(*this);
     }
 
 private:
