@@ -21,7 +21,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(AddUnicodeDisplayWidth)
 
-add_library(annotate_snippets src/annotated_source.cpp src/detail/styled_string_impl.cpp)
+add_library(annotate_snippets
+    src/annotated_source.cpp
+    src/detail/styled_string_impl.cpp
+    src/renderer/human_renderer.cpp
+)
 target_include_directories(annotate_snippets PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${unicode_display_width_SOURCE_DIR}/include
