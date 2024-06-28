@@ -65,7 +65,7 @@ public:
 
     auto with_error_code(std::string_view err_code) && -> Derived&& {
         set_error_code(err_code);
-        return static_cast<Derived&>(*this);
+        return static_cast<Derived&&>(*this);
     }
 
     auto diag_message() const -> StyledStringView const& {
