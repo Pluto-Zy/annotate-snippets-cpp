@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-22.04 ]
-        compiler: [ g++-11, g++-12, clang++-13, clang++-14, clang++-15 ]
+        compiler: [ g++-11, g++-12, g++-13, clang++-16, clang++-17, clang++-18 ]
         build_type: [ Debug, Release ]
 
     name: Build and Test on Ubuntu
@@ -19,11 +19,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Clang
+        if: contains(matrix.compiler, 'clang')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget lsb-release software-properties-common
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          VERSION=$(echo ${{ matrix.compiler }} | cut -d'-' -f2) # Extracts the version number
+          sudo ./llvm.sh $VERSION
+          echo "CC=clang-$VERSION" >> $GITHUB_ENV
+          echo "CXX=clang++-$VERSION" >> $GITHUB_ENV
+
+      - name: Install GCC
+        if: contains(matrix.compiler, 'g++')
+        run: |
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.compiler }}
+          echo "CXX=${{ matrix.compiler }}" >> $GITHUB_ENV
+
       - name: Configure CMake
         run: |
             cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
                   -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
-                  -DCMAKE_CXX_COMPILER=${{matrix.compiler}} \
                   -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
 
       - name: Build
@@ -39,13 +58,16 @@ jobs:
   build-macos:
     strategy:
       matrix:
-        os: [ macos-latest ]
+        os: [ macos-14 ]
         build_type: [ Debug, Release ]
 
     name: Build and Test on MacOS
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set Xcode version
+        run: sudo xcode-select --switch /Applications/Xcode_16.0.app
 
       - name: Configure CMake
         run: |
