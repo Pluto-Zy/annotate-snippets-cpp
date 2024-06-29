@@ -2,10 +2,10 @@
 
 #include "annotate_snippets/annotated_source.hpp"
 #include "annotate_snippets/detail/styled_string_impl.hpp"
+#include "annotate_snippets/detail/unicode_display_width.hpp"
 #include "annotate_snippets/style.hpp"
 #include "annotate_snippets/styled_string.hpp"
 #include "annotate_snippets/styled_string_view.hpp"
-#include "unicode/display_width.hpp"
 
 #include <algorithm>
 #include <ranges>
@@ -125,7 +125,7 @@ void HumanRenderer::render_title_message(
     // Render the diagnostic level title (such as "error"). The colon following "error" is rendered
     // later because the error code may be inserted between "error" and ": ".
     render_target.append(level_title, title_style);
-    indentation += unicode::display_width(std::string(level_title));
+    indentation += detail::display_width(level_title);
 
     // If there is an error code, render it.
     if (!err_code.empty()) {
@@ -134,7 +134,7 @@ void HumanRenderer::render_title_message(
         rendered_err_code.push_back(']');
 
         render_target.append(rendered_err_code, title_style);
-        indentation += unicode::display_width(rendered_err_code);
+        indentation += detail::display_width(rendered_err_code);
     }
 
     render_target.append(": ", title_style);
@@ -181,8 +181,7 @@ auto HumanRenderer::render_file_line_col_short_message(
 
         // Compute the width of the part already rendered. Since we've also drawn one ": " and two
         // ':', we need to add 4.
-        final_width =
-            unicode::display_width(std::string(source.origin())) + line.size() + col.size() + 4;
+        final_width = detail::display_width(source.origin()) + line.size() + col.size() + 4;
         ++idx;
     }
 
