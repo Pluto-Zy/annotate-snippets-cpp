@@ -125,6 +125,12 @@ public:
     /// located into the cache `line_offsets_`.
     auto byte_offset_to_line_col(std::size_t byte_offset) -> SourceLocation;
 
+    /// Returns the content of the line `line`. If the line does not exist, returns an empty string.
+    ///
+    /// Note that the returned string does not include the trailing newline character, whether it is
+    /// '\n' or '\r\n'.
+    auto line_content(unsigned line) -> std::string_view;
+
     auto primary_spans() const -> std::vector<LabeledSpan> const& {
         return primary_spans_;
     }
