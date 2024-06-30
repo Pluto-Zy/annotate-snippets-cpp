@@ -409,4 +409,73 @@ TEST(AnnotatedSourceTest, ByteOffsetToLineCol) {
 
 #undef CHECK_SOURCE_LOCATION
 }
+
+TEST(AnnotatedSourceTest, LineContent) {
+    {
+        ants::AnnotatedSource source("abc");
+        EXPECT_EQ(source.line_content(0), "abc");
+        EXPECT_EQ(source.line_content(1), "");
+        EXPECT_EQ(source.line_content(2), "");
+        EXPECT_EQ(source.line_content(100), "");
+        EXPECT_EQ(source.line_content(0), "abc");
+    }
+
+    {
+        ants::AnnotatedSource source("abc\n");
+        EXPECT_EQ(source.line_content(0), "abc");
+        EXPECT_EQ(source.line_content(1), "");
+        EXPECT_EQ(source.line_content(2), "");
+        EXPECT_EQ(source.line_content(3), "");
+    }
+
+    {
+        ants::AnnotatedSource source("abc\r\n");
+        EXPECT_EQ(source.line_content(0), "abc");
+        EXPECT_EQ(source.line_content(1), "");
+        EXPECT_EQ(source.line_content(2), "");
+        EXPECT_EQ(source.line_content(3), "");
+    }
+
+    {
+        ants::AnnotatedSource source("abc\r");
+        EXPECT_EQ(source.line_content(0), "abc\r");
+        EXPECT_EQ(source.line_content(1), "");
+        EXPECT_EQ(source.line_content(2), "");
+    }
+
+    {
+        ants::AnnotatedSource source("ab\ncd\r\ne\nf");
+        EXPECT_EQ(source.line_content(0), "ab");
+        EXPECT_EQ(source.line_content(3), "f");
+        EXPECT_EQ(source.line_content(2), "e");
+        EXPECT_EQ(source.line_content(1), "cd");
+    }
+
+    {
+        ants::AnnotatedSource source("");
+        EXPECT_EQ(source.line_content(0), "");
+        EXPECT_EQ(source.line_content(1), "");
+        EXPECT_EQ(source.line_content(2), "");
+    }
+
+    {
+        ants::AnnotatedSource source("\r\n");
+        EXPECT_EQ(source.line_content(3), "");
+        EXPECT_EQ(source.line_content(2), "");
+        EXPECT_EQ(source.line_content(1), "");
+        EXPECT_EQ(source.line_content(0), "");
+    }
+
+    {
+        ants::AnnotatedSource source("\r\n1\n2\n\n\n");
+        EXPECT_EQ(source.line_content(0), "");
+        EXPECT_EQ(source.line_content(1), "1");
+        EXPECT_EQ(source.line_content(2), "2");
+        EXPECT_EQ(source.line_content(3), "");
+        EXPECT_EQ(source.line_content(4), "");
+        EXPECT_EQ(source.line_content(5), "");
+        EXPECT_EQ(source.line_content(6), "");
+        EXPECT_EQ(source.line_content(7), "");
+    }
+}
 }  // namespace

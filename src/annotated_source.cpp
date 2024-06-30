@@ -254,4 +254,27 @@ auto AnnotatedSource::byte_offset_to_line_col(std::size_t byte_offset) -> Source
         .col = static_cast<unsigned>(byte_offset - line_start),
     };
 }
+
+auto AnnotatedSource::line_content(unsigned line) -> std::string_view {
+    std::size_t const line_start = line_offset(line);
+    std::size_t const line_end = line_offset(line + 1);
+
+    if (line_start >= source_.size()) {
+        return {};
+    } else {
+        std::string_view result = source_.substr(line_start, line_end - line_start);
+
+        // Remove the trailing '\n'.
+        if (!result.empty() && result.back() == '\n') {
+            result = result.substr(0, result.size() - 1);
+
+            // If the end is "\r\n", remove both characters.
+            if (!result.empty() && result.back() == '\r') {
+                result = result.substr(0, result.size() - 1);
+            }
+        }
+
+        return result;
+    }
+}
 }  // namespace ants
