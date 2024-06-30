@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Clang
-        if: contains(matrix.compiler, 'clang')
+        if: startsWith(matrix.compiler, 'clang++')
         run: |
           sudo apt-get update
           sudo apt-get install -y wget lsb-release software-properties-common
@@ -32,7 +32,7 @@ jobs:
           echo "CXX=clang++-$VERSION" >> $GITHUB_ENV
 
       - name: Install GCC
-        if: contains(matrix.compiler, 'g++')
+        if: startsWith(matrix.compiler, 'g++')
         run: |
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test
           sudo apt-get update
