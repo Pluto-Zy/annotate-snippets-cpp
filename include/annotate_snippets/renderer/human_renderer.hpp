@@ -9,6 +9,7 @@
 #include "annotate_snippets/styled_string_view.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <ranges>
 #include <string_view>
 
@@ -32,6 +33,34 @@ public:
     bool ui_testing = false;
     /// Content displayed at the line number position when rendering anonymized line numbers.
     std::string_view anonymized_line_num = "LL";
+    /// Represents the number of spaces that a '\t' should be replaced with when rendering *source
+    /// code* (rather than labels) on the screen. By specifying this value, we can make the tabs in
+    /// the rendering appear more uniform.
+    ///
+    /// If set to 0, it means that tabs should not be replaced with spaces.
+    std::uint8_t display_tab_width = 4;
+    /// The maximum number of unannotated lines allowed. If the number of unannotated lines between
+    /// two annotated lines exceeds this value, all such lines are collectively replaced by an
+    /// ellipsis line (represented by "..."). Otherwise, all these unannotated lines will be fully
+    /// rendered.
+    ///
+    /// If this value is set to 0, it means that no unannotated lines are allowed.
+    std::uint8_t max_unannotated_line_num = 2;
+    /// The maximum number of lines allowed for a multi-line annotation. If the number of lines
+    /// covered by a multi-line annotation exceeds this value, the lines exceeding this count from
+    /// the middle onwards are collectively replaced by an ellipsis line (represented by "...").
+    /// Otherwise, the multi-line annotation will be fully rendered.
+    ///
+    /// Note that since multiple multi-line annotations may overlap and intersect, it is necessary
+    /// to ensure all multi-line annotations are correctly rendered before attempting to omit any
+    /// lines to meet this value. For example, when multiple multi-line annotations are nested, the
+    /// outermost annotations cannot be omitted because it is necessary for the inner annotations to
+    /// be rendered.
+    ///
+    /// Valid values for this parameter must *not* be less than 2, as at least two lines need to be
+    /// rendered. If a value less than 2 is specified, all multi-line annotations will be fully
+    /// rendered.
+    std::uint8_t max_multiline_annotation_line_num = 4;
 
     template <class Level>
     auto render_diag(Diag<Level> diag) const -> StyledString {
