@@ -61,6 +61,49 @@ public:
     /// rendered. If a value less than 2 is specified, all multi-line annotations will be fully
     /// rendered.
     std::uint8_t max_multiline_annotation_line_num = 4;
+    /// Rendering position of single-line annotation labels.
+    ///
+    /// Typically, we aim to render the label and the underline on the same line to minimize the
+    /// vertical length of diagnostic messages. For example:
+    ///
+    ///     foo(abc + def)
+    ///         ^^^ label   <-- on the same line as the underline.
+    ///
+    /// However, sometimes we cannot render them on the same line, as shown below:
+    ///
+    ///     foo(abc + def)
+    ///         ^^^   ^^^ label   <-- this label can be on the same line as the underline.
+    ///         |
+    ///         label   <-- This label cannot be on the same line, otherwise it would obscure
+    ///                     subsequent information.
+    ///
+    /// This member controls the placement of the label when such situations occur.
+    ///
+    /// Note:
+    /// 1. Regardless of what value `label_position` is set to, as long as the label can be rendered
+    ///    on the same line as the underline, we will do so. In this case, `label_position` has no
+    ///    effect.
+    /// 2. This member does not affect *multi-line annotations*: if a label cannot be rendered on
+    ///    the same line as the end of a multi-line annotation, it will always be rendered at the
+    ///    end of the multi-line annotation's tail, similar to the `Right` effect.
+    enum LabelPosition : std::uint8_t {
+        /// Indicates that the label should be rendered at the far left of the annotated range, for
+        /// example:
+        ///
+        ///     foo(variable + def)
+        ///         ^^^^^^^^   ^^^
+        ///         |
+        ///         This label is rendered at the far left of the annotated "variable" word.
+        Left,
+        /// Indicates that the label should be rendered at the far right of the annotated range, for
+        /// example:
+        ///
+        ///     foo(variable + def)
+        ///         ^^^^^^^^   ^^^
+        ///                |
+        ///                This label is rendered at the far right of the annotated "variable" word.
+        Right,
+    } label_position = Left;
 
     template <class Level>
     auto render_diag(Diag<Level> diag) const -> StyledString {

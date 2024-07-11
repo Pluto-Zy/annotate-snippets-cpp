@@ -8,15 +8,19 @@
 #include "annotate_snippets/styled_string_view.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <iterator>
 #include <map>
 #include <memory>
+#include <queue>
 #include <ranges>
 #include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -266,6 +270,14 @@ auto normalize_source(std::string_view source, unsigned display_tab_width) -> st
     }
 }
 
+/// `hash_combine` implementation from Boost.
+template <class T>
+auto hash_combine(std::size_t seed, T const& value) -> std::size_t {
+    std::hash<T> hasher;
+    seed ^= hasher(value) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    return seed;
+}
+
 /// Represents a multi-line annotation.
 ///
 /// This class is not used for rendering. Since the renderer needs to process single-line and
@@ -343,6 +355,60 @@ struct Annotation {
         unsigned byte;
         unsigned display;
     } col_beg, col_end;
+    /// Represents the rendering level of the current annotation within the line.
+    ///
+    /// We use rendering levels to control the position and order of annotations to prevent
+    /// overlapping annotations and to reduce the number of times underlines cross.
+    ///
+    /// Specifically, we divide an annotation into two parts: the underline and the label. Each part
+    /// can have its own rendering level. For example:
+    ///
+    ///     func(abc)
+    ///          ^^^   <-- Underline at level 0
+    ///
+    ///     func(abc)
+    ///          ^^^ label   <-- Underline and label at level 0
+    ///
+    ///     func(abc)
+    ///          ^^^     <-- Underline at level 0
+    ///          |
+    ///          label   <-- Label at level 1
+    ///
+    ///     func(abc)
+    ///          ^^^     <-- Underline at level 0
+    ///          |
+    ///          |
+    ///          label   <-- Label at level 2
+    ///
+    ///     func(abc,
+    ///  _______^  ^   <-- Multi-line annotation underline at level 0
+    /// |  ________|   <-- Multi-line annotation underline at level 1
+    /// | |      hello world)
+    /// | |______^ label    ^       <-- Multi-line annotation underline and label at level 0
+    /// |___________________|       <-- Multi-line annotation underline at level 1
+    ///                     label   <-- Label at level 1
+    ///
+    /// In the current implementation, we have the following conventions:
+    ///
+    /// 1. All single-line annotations have their underlines at level 0: they are always rendered
+    ///    immediately following the source code line. Therefore, for single-line annotations,
+    ///    `render_level` represents the level of its label.
+    /// 2. All multi-line annotations have the same level for both underlines and labels, where
+    ///    `render_level` represents this level.
+    /// 3. If a label's level is 0, it is rendered as an inline label, i.e., it directly follows the
+    ///    corresponding underline:
+    ///
+    ///     func(abc)
+    ///          ^^^ label   <-- Inline label
+    ///
+    ///    If the label's level is not 0, it is rendered as an inter-line label. The position of the
+    ///    label then depends on `HumanRenderer::label_position`:
+    ///
+    ///     func(abc)
+    ///          ^^^
+    ///          |
+    ///          label   <-- Inter-line label, with `HumanRenderer::label_position` set to `Left`.
+    unsigned render_level;
     /// The type of the current annotation.
     enum : std::uint8_t {
         /// Annotation for a single line of code.
@@ -425,6 +491,39 @@ struct Annotation {
         };
     }
 
+    /// Returns the range of the underline display for the current annotation. The return value is a
+    /// tuple of two unsigned integers, representing the start and end positions of the underline.
+    auto underline_display_range() const -> std::tuple<unsigned, unsigned> {
+        switch (type) {
+        case Annotation::SingleLine:
+            // For single-line annotations, the range of the underline is the same as its annotation
+            // range:
+            //
+            //     func(arg)
+            //          ^^^   <-- The range of the underline is the same as the annotation range
+            return std::make_pair(col_beg.display, col_end.display);
+        case Annotation::MultilineHead:
+        case Annotation::MultilineTail:
+            // For the head and tail of multi-line annotations, we only render a width of 1
+            // underline at the start (for the head) and end (for the tail) positions:
+            //
+            //     func(arg1,
+            //  _______^        <-- For the head, only a width of 1 underline is rendered at the
+            // |                    start position
+            // |        arg2)
+            // |____________^   <-- For the tail, only a width of 1 underline is rendered at the end
+            //                      position
+            //
+            // Note that for `MultilineHead` and `MultilineTail`, their `col_beg` member stores the
+            // depth of the multi-line annotation, while `col_end` points to the position just after
+            // the last byte of the annotated range in this line.
+            return std::make_pair(col_end.display - 1, col_end.display);
+        default:
+            // For other types, do not render an underline.
+            return std::make_pair(0u, 0u);
+        }
+    }
+
 private:
     Annotation(
         StyledStringView const& label,
@@ -440,6 +539,7 @@ private:
         col_beg { .byte = col_beg, .display = col_beg },
         col_end { .byte = col_end, .display = col_end },
         type(type),
+        render_level(0),
         is_primary(is_primary) { }
 
     /// Returns the display width of the label `label`. It is calculated as the maximum width of all
@@ -503,6 +603,8 @@ public:
     ///    Implemented by `fold_multiline_annotations()`.
     /// 5. Calculates the display width of annotations and source code lines. Implemented by
     ///    `compute_display_columns()`.
+    /// 6. Assigns render levels to annotations line by line. Implemented by
+    ///    `assign_annotation_levels()`.
     static auto from_source(  //
         AnnotatedSource& source,
         HumanRenderer const& renderer
@@ -525,6 +627,11 @@ public:
         result.fold_multiline_annotations(renderer.max_multiline_annotation_line_num);
 
         result.compute_display_columns(source, renderer.display_tab_width);
+
+        for (auto& [line_no, line] : result.lines_) {
+            result.assign_annotation_levels(renderer.label_position, line);
+            (void) line_no;
+        }
 
         return result;
     };
@@ -1034,6 +1141,452 @@ private:
             annotated_line.line_display_width =
                 col_display.find(annotated_line.source_line.size())->second;
         }
+    }
+
+    /// Merges annotations with the same range to prevent assigning different rendering levels to
+    /// these annotations.
+    ///
+    /// Typically, we do not generate multiple redundant annotations as shown in the following
+    /// example:
+    ///
+    ///     func(arg)
+    ///          ^^^ label1
+    ///          |
+    ///          label2
+    ///          |
+    ///          label3
+    ///
+    /// Instead, we merge them into a single annotation:
+    ///
+    ///     func(arg)
+    ///          ^^^ label1
+    ///              label2
+    ///              label3
+    static auto merge_annotations(std::vector<Annotation> annotations) -> std::vector<Annotation> {
+        // We use `std::unordered_set` to eliminate duplicates in `annotations`, but not all members
+        // participate in equality comparison. We only merge annotations that have the same range.
+        //
+        // For `SingleLine`, `col_beg` and `col_end` define the annotation range. For
+        // `MultilineHead` and `MultilineTail`, if their `col_end` are the same, they are considered
+        // to have the same range. Moreover, we need to distinguish multi-line annotations of
+        // different depths, for example:
+        //
+        //     func(arg)
+        //  _______^
+        // |  _____|
+        // | |
+        //
+        // In this example, the two multi-line annotations have the same `col_end` but different
+        // depths. We cannot merge these annotations because they correspond to different parts of
+        // the multi-line annotation's tail. Thus, for multi-line annotations, we also need to
+        // consider the value of their `col_beg` member, because for multi-line annotations,
+        // `col_beg` stores its depth.
+        //
+        // We also need to consider the type of `Annotation`: we cannot merge annotations of
+        // different types, for example:
+        //
+        // |   func(arg)
+        // |_______^
+        //  _______|
+        // |
+        //
+        // In this example, these two multi-line annotations have the same `col_beg` and `col_end`,
+        // but one is `MultilineHead` and the other is `MultilineTail`. We cannot merge them.
+        //
+        // Therefore, we only consider merging annotations when `col_beg`, `col_end`, and `type` are
+        // all the same.
+
+        // Provides a hasher for `Annotation`. We do not specialize `std::hash<>` outside the class
+        // because here we only deal with part of the `Annotation` members.
+        auto const annotation_hasher = [](Annotation const& annotation) {
+            std::size_t seed = 0;
+            seed = hash_combine(seed, annotation.col_beg.display);
+            seed = hash_combine(seed, annotation.col_end.display);
+            seed = hash_combine(seed, annotation.type);
+            return seed;
+        };
+
+        // Provides a comparator for `Annotation`. We do not overload `operator==` for `Annotation`
+        // because we only deal with part of the `Annotation` members.
+        auto const annotation_eq = [](Annotation const& lhs, Annotation const& rhs) {
+            return std::tie(lhs.col_beg.display, lhs.col_end.display, lhs.type)
+                == std::tie(rhs.col_beg.display, rhs.col_end.display, rhs.type);
+        };
+
+        std::unordered_set<Annotation, decltype(annotation_hasher), decltype(annotation_eq)>
+            merged_annotations;
+
+        for (Annotation& annotation : annotations) {
+            auto const [target, inserted] = merged_annotations.insert(std::move(annotation));
+            if (!inserted) {
+                // If insertion fails, it means this annotation already exists, and we need to merge
+                // these two annotations.
+                auto handler = merged_annotations.extract(target);
+                Annotation& old_annotation = handler.value();
+
+                // Merge the labels of these two annotations: akin to creating a new line and adding
+                // the new label to it.
+                old_annotation.label.insert(
+                    old_annotation.label.end(),
+                    std::make_move_iterator(annotation.label.begin()),
+                    std::make_move_iterator(annotation.label.end())
+                );
+
+                old_annotation.label_display_width = std::ranges::max(
+                    old_annotation.label_display_width,
+                    annotation.label_display_width
+                );
+
+                // We prioritize displaying primary annotations: if either of the annotations is
+                // primary, the merged annotation should also be primary.
+                old_annotation.is_primary = old_annotation.is_primary || annotation.is_primary;
+
+                merged_annotations.insert(target, std::move(handler));
+            }
+        }
+
+        std::vector<Annotation> result;
+        result.reserve(merged_annotations.size());
+
+        for (auto iter = merged_annotations.begin(); iter != merged_annotations.end();) {
+            result.push_back(std::move(merged_annotations.extract(iter++).value()));
+        }
+
+        return result;
+    }
+
+    /// Assigns a rendering level to the annotation, i.e., calculates the value of the
+    /// `Annotation::render_level` member. For information on the function of rendering levels,
+    /// please refer to the documentation comment of `Annotation::render_level`.
+    void assign_annotation_levels(
+        HumanRenderer::LabelPosition label_position,
+        AnnotatedLine& line
+    ) {
+        // Merges annotations with the same range.
+        std::vector<Annotation> annotations = merge_annotations(std::move(line.annotations));
+
+        // Now, we need to identify all annotations that can be rendered inline.
+        //
+        // Inline rendering means that labels and underlines appear on the same line, for example:
+        //
+        //     func(arg)
+        //     ^^^^ ^^^ label1   <-- inline rendering
+        //     |
+        //     label2            <-- non-inline rendering
+        //
+        // Specifically, an annotation is considered inline if:
+        //
+        // 1. The annotation's label does not overlap with any other annotation's underline. Note
+        // that overlap between labels, such as:
+        //
+        //     func(arg)
+        //     ^^^^ ^^^ label1
+        //     |
+        //     long label2
+        //
+        // Here, "label1" does not overlap with any underlines but overlaps with "long label2". This
+        // overlap doesn't prevent "label1" from being rendered inline.
+        //
+        // 2. The boundaries of the annotation's underline must be clear, meaning no other
+        // annotation's underline should blend into the boundaries of this underline, for example:
+        //
+        //     func(arg)
+        //     ^^^^^ label1
+        //     |
+        //     label2
+        //
+        // This would misleadingly suggest that the range of "label1" is "func(". Therefore,
+        // "label1" should not be rendered inline but rather like this:
+        //
+        //     func(arg)
+        //     ^^^^^
+        //     |   |
+        //     |   label1
+        //     label2
+        //
+        // 3. For multiline annotations, if any other annotation's underline is on the left side of
+        // its underline, it cannot be rendered inline, for example:
+        //
+        //     func(arg)
+        //     ^^^^ ^
+        //  ________|
+        //
+        // Here, we cannot render this multiline annotation inline (i.e., at render level 0) because
+        // we need to raise its render level to avoid obscuring the annotation to its left.
+        //
+        // Furthermore, any annotations without labels are considered for inline rendering to reduce
+        // the computational overhead in subsequent calculations of the render level.
+
+        for (Annotation& self : annotations) {
+            // If an annotation does not contain a label, it is always rendered inline.
+            if (self.label.empty()) {
+                continue;
+            }
+
+            // The display range for the annotation's label. Here, we consider the space occupied by
+            // the label and one additional space on each side to ensure that no other annotation's
+            // underline appears within this range:
+            //
+            //     func(args)
+            //          ---- label
+            //              ^^^^^^^
+            //              This range is considered the label's display range, within which no
+            //              other annotation's underline should appear.
+            unsigned const label_beg = self.col_end.display;
+            unsigned const label_end = label_beg + self.label_display_width + 2;
+
+            // The display range for the current annotation's underline.
+            auto const [underline_beg, underline_end] = self.underline_display_range();
+
+            // Compare the current annotation with others. We do not need to check if `self` and
+            // `other` are the same object, because an annotation's underline will neither overlap
+            // with its own label nor merge with the boundaries of its own underline.
+            for (Annotation const& other : annotations) {
+                // The underline range for `other`.
+                auto const [other_beg, other_end] = other.underline_display_range();
+
+                // Check if `self`'s label overlaps with any annotation's underline.
+                //
+                // Note that, although not explicitly stated, we still consider cases where
+                // `other`'s underline range might be empty (e.g., when `other.type` is
+                // `MultilineBody`): if `other_beg` and `other_end` are equal, this `if` statement
+                // will not be executed, thus not affecting the result.
+                if (std::ranges::max(label_beg, other_beg)
+                    < std::ranges::min(label_end, other_end)) {
+                    self.render_level = 1;
+                    break;
+                }
+
+                // Check if `self`'s underline can be distinctly rendered. We only need to verify
+                // that no other annotation's underline obscures the ends of `self`'s underline.
+                // Note that this is different from checking if there is an overlap of underlines,
+                // for example:
+                //
+                //     func(args)
+                //         ^^^^^^
+                //          ----
+                //
+                // Although the underlines ^ and - overlap here, we can still render the underline ^
+                // inline, because its start and end positions are clear and unobstructed.
+                //
+                // Note that, although not explicitly stated, we still consider cases where
+                // `other`'s underline range might be empty: if `other_beg` and `other_end` are
+                // equal, this `if` statement will not be executed, thus not affecting the result.
+                if (other_beg < underline_beg && underline_beg <= other_end
+                    || other_beg <= underline_end && underline_end < other_end) {
+                    self.render_level = 1;
+                    break;
+                }
+
+                // If the current annotation is the head or tail of a multiline annotation, check if
+                // there is an underline from another annotation on its left side.
+                if (self.type == Annotation::MultilineHead
+                    || self.type == Annotation::MultilineTail) {
+                    // Note that we need to explicitly consider whether `other`'s underline range is
+                    // empty. We also need to check whether `self` and `other` are the same object,
+                    // because we are using `<=` here.
+                    if (other_beg != other_end && other_beg <= underline_beg && &self != &other) {
+                        self.render_level = 1;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Next, assign render levels to all annotations that cannot be rendered inline. We follow
+        // these three principles:
+        //
+        // 1. For two annotations A and B, with display ranges for their labels [a1, a2) and [b1,
+        // b2) respectively. If a1 < b1 <= a2, then the render level of A should be greater than
+        // that of B.
+        //
+        // This rule addresses the scenario as follows:
+        //
+        //     func(arg)
+        //     ^^^^ ^^^
+        //     |    |
+        //     |    label1
+        //     long label2
+        //
+        // Here, the render level of 'long label2' should be higher than that of 'label1'.
+        //
+        // 2. For two annotations A and B, with label display ranges [a1, a2) and [b1, b2)
+        // respectively. If a1 == b1, then the later occurring annotation should have a higher
+        // render level. This simply provides a consistent order for annotations A and B, as seen in
+        // the situation below:
+        //
+        //     func(arg)
+        //     ^^^^
+        //     |
+        //     label1
+        //     label2
+        //
+        // 3. For multiline annotations A and B, with display ranges [a1, a2) and [b1, b2)
+        // respectively. If b2 < a1, then the render level of A should be at least 2 greater than
+        // that of B.
+        //
+        // This rule is demonstrated in the following scenario:
+        //
+        //     func(arg)
+        //     ^^^^ ^^^
+        //     |    |
+        //     text |
+        // _________|
+        //
+        // To assign render levels to all annotations and satisfy the above requirements, we
+        // construct a directed graph and use topological sorting to allocate levels for each
+        // annotation. If annotation A should be at least n levels higher than annotation B, there
+        // should be a directed edge from B to A with a weight of n.
+
+        /// Vertices of the directed graph.
+        struct Vertex {
+            /// The annotation corresponding to this vertex.
+            Annotation* annotation;
+            /// The indegree of this vertex.
+            unsigned indegree;
+            // All successor neighbor vertices of this vertex, each associated with a weight
+            // representing the weight of the directed edge from this vertex to the neighbor.
+            std::vector<std::pair<Vertex*, unsigned>> neighbors;
+
+            Vertex() = default;
+            explicit Vertex(Annotation& annotation) : annotation(&annotation), indegree(0) { }
+        };
+
+        class AnnotationGraph {
+        public:
+            // clang-format off
+            AnnotationGraph(
+                std::vector<Annotation>& annotations,
+                HumanRenderer::LabelPosition label_position
+            ) :
+                label_position_(label_position)
+            // clang-format on
+            {
+                vertices_.reserve(annotations.size());
+                for (Annotation& annotation : annotations) {
+                    // Add all annotations that cannot be rendered inline (i.e., those with a render
+                    // level not equal to 0) to the vertex set.
+                    if (annotation.render_level != 0) {
+                        vertices_.emplace_back(annotation);
+                    }
+                }
+
+                build_graph();
+            }
+
+            /// Assign render levels to annotations associated with vertices via topological
+            /// sorting.
+            void assign_levels() const {
+                std::queue<Vertex const*> vertex_queue;
+                // Add all vertices with an indegree of 0 to the queue.
+                for (Vertex const& vertex : vertices_) {
+                    if (vertex.indegree == 0) {
+                        vertex_queue.push(&vertex);
+                    }
+                }
+
+                while (!vertex_queue.empty()) {
+                    Vertex const* const cur_vertex = vertex_queue.front();
+                    vertex_queue.pop();
+
+                    for (auto const [neighbor, weight] : cur_vertex->neighbors) {
+                        // Calculate the maximum level required by all predecessor nodes for
+                        // `neighbor`.
+                        neighbor->annotation->render_level = std::ranges::max(
+                            neighbor->annotation->render_level,
+                            cur_vertex->annotation->render_level + weight
+                        );
+
+                        if (--neighbor->indegree == 0) {
+                            vertex_queue.push(neighbor);
+                        }
+                    }
+                }
+            }
+
+        private:
+            std::vector<Vertex> vertices_;
+            HumanRenderer::LabelPosition label_position_;
+
+            static void add_edge(Vertex& from, Vertex& to, unsigned weight) {
+                from.neighbors.emplace_back(&to, weight);
+                ++to.indegree;
+            }
+
+            /// Calculate the display range for an annotation's label.
+            ///
+            /// If `label_position_` is `HumanRenderer::Left`, the label is rendered at the far left
+            /// of the annotated "variable":
+            ///
+            ///     foo(variable + def)
+            ///         ^^^^^^^^   ^^^
+            ///         |
+            ///         This label is rendered at the far left of the annotated "variable" word.
+            ///
+            /// Otherwise, it is rendered at the far right:
+            ///
+            ///     foo(variable + def)
+            ///         ^^^^^^^^   ^^^
+            ///                |
+            ///                This label is rendered at the far right of the annotated "variable"
+            ///                word.
+            auto compute_label_display_range(  //
+                Annotation const& annotation
+            ) const -> std::tuple<unsigned, unsigned> {
+                auto const [underline_beg, underline_end] = annotation.underline_display_range();
+                unsigned const label_beg =
+                    label_position_ == HumanRenderer::Left ? underline_beg : underline_end - 1;
+                return std::make_tuple(label_beg, label_beg + annotation.label_display_width);
+            }
+
+            /// Build edges in the directed graph based on the three rules above: if vertex A's
+            /// level needs to be at least n greater than vertex B's, establish an edge from B to A
+            /// with a weight of n.
+            void build_graph() {
+                for (Vertex& self : vertices_) {
+                    auto const [self_beg, self_end] = compute_label_display_range(*self.annotation);
+                    bool const is_multiline = self.annotation->type == Annotation::MultilineHead
+                        || self.annotation->type == Annotation::MultilineTail;
+
+                    for (Vertex& other : vertices_) {
+                        auto const [other_beg, other_end] =
+                            compute_label_display_range(*other.annotation);
+
+                        // Rule 1: If a1 < b1 <= a2, then A's render level should be greater than
+                        // B's.
+                        if (self_beg < other_beg && other_beg <= self_end) {
+                            // `self`'s level should be greater than `other`'s, hence an edge is
+                            // established from `other` to `self`.
+                            add_edge(other, self, /*weight=*/1);
+                        }
+
+                        // Rule 2: If a1 == b1, the later occurring annotation should have a greater
+                        // render level.
+                        if (self_beg == other_beg && self.annotation < other.annotation) {
+                            // `other`'s level should be greater than `self`'s, hence an edge is
+                            // established from `self` to `other`.
+                            add_edge(self, other, /*weight=*/1);
+                        }
+
+                        // Rule 3: If b2 < a1 and A is a multiline annotation, then A's render level
+                        // should be at least 2 greater than B's.
+                        if (is_multiline && other_end < self_beg) {
+                            // `self`'s level should be greater than `other`'s, hence an edge is
+                            // established from `other` to `self`.
+                            add_edge(other, self, /*weight=*/2);
+                        }
+                    }
+                }
+            }
+        };
+
+        AnnotationGraph const annotation_graph(annotations, label_position);
+        // Assign levels to all annotations that cannot be rendered inline. Since `AnnotationGraph`
+        // does not own the `Annotation` objects, the results are directly written back to the
+        // original `Annotation` objects.
+        annotation_graph.assign_levels();
+
+        line.annotations = std::move(annotations);
     }
 };
 
