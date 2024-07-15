@@ -165,6 +165,88 @@ public:
         }
     }
 
+    /// Uses the string `content` to overwrite characters starting from `position`, and sets the
+    /// style of the newly replaced characters to `style`.
+    ///
+    /// Note that this function does not move other characters but replaces the substring in the
+    /// range `[position, position + content.size())` with `content`, leaving characters in other
+    /// positions unchanged.
+    ///
+    /// If the range of characters to be overwritten extends beyond the existing range of the
+    /// string, the string will be expanded to accommodate `content`. If the target position
+    /// `position` exceeds the current range of the string, the string will be extended by adding
+    /// unstyled spaces to make it sufficiently long.
+    void set_styled_content(std::size_t position, std::string_view content, Style style) {
+        // Ensures there is enough space to insert `content`.
+        if (content_.size() < position + content.size()) {
+            append_spaces(position + content.size() - content_.size());
+        }
+
+        content_.replace(position, content.size(), content);
+        set_style(style, position, position + content.size());
+    }
+
+    /// Uses the string `content` to overwrite characters starting from `position`, and sets the
+    /// style of the newly replaced characters to `style`. If `style` is `Style::Auto`, it is
+    /// replaced with `auto_replacement`.
+    ///
+    /// Note that this function does not move other characters but replaces the substring in the
+    /// range `[position, position + content.size())` with `content`, leaving characters in other
+    /// positions unchanged.
+    ///
+    /// If the range of characters to be overwritten extends beyond the existing range of the
+    /// string, the string will be expanded to accommodate `content`. If the target position
+    /// `position` exceeds the current range of the string, the string will be extended by adding
+    /// unstyled spaces to make it sufficiently long.
+    void set_styled_content(
+        std::size_t position,
+        std::string_view content,
+        Style style,
+        Style auto_replacement
+    ) {
+        set_styled_content(position, content, style.is_auto_style() ? auto_replacement : style);
+    }
+
+    /// Sequentially overwrites the string starting from `position` with all parts of
+    /// `styled_content`. The style of the newly written string will be consistent with that of
+    /// `styled_content`. This function is typically used to write a `StyledStringView` or
+    /// `StyledString` into a specific position of the current string line by line.
+    ///
+    /// If the range of characters to be overwritten extends beyond the existing range of the
+    /// string, the string will be expanded to accommodate `content`. If the target position
+    /// `position` exceeds the current range of the string, the string will be extended by adding
+    /// unstyled spaces to make it sufficiently long.
+    void set_styled_content(
+        std::size_t position,
+        std::vector<StyledStringViewPart> const& styled_content
+    ) {
+        for (auto const& [content, style] : styled_content) {
+            set_styled_content(position, content, style);
+            position += content.size();
+        }
+    }
+
+    /// Sequentially overwrites the string starting from `position` with all parts of
+    /// `styled_content`. The style of the newly written string will be consistent with that of
+    /// `styled_content`, except that any parts with `Style::Auto` will be replaced with
+    /// `auto_replacement`. This function is typically used to write a `StyledStringView` or
+    /// `StyledString` into a specific position of the current string line by line.
+    ///
+    /// If the range of characters to be overwritten extends beyond the existing range of the
+    /// string, the string will be expanded to accommodate `content`. If the target position
+    /// `position` exceeds the current range of the string, the string will be extended by adding
+    /// unstyled spaces to make it sufficiently long.
+    void set_styled_content(
+        std::size_t position,
+        std::vector<StyledStringViewPart> const& styled_content,
+        Style auto_replacement
+    ) {
+        for (auto const& [content, style] : styled_content) {
+            set_styled_content(position, content, style, auto_replacement);
+            position += content.size();
+        }
+    }
+
     /// Splits `content` into several `StyledStringPart`s by line and style, and puts substrings
     /// consisting of consecutive characters of the same style into one `StyledStringPart`. If there
     /// are multiple lines in a substring, splits each line into a separate `StyledStringPart`.

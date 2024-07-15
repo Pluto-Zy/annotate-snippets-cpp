@@ -406,4 +406,156 @@ TEST(StyledStringTest, AppendSpace) {
         // clang-format on
     }
 }
+
+TEST(StyledStringTest, SetStyledContent) {
+    {
+        auto str = ants::StyledString();
+        str.set_styled_content(5, "Hello", ants::Style::Auto);
+        EXPECT_EQ(str.content(), "     Hello");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "     ", .style = ants::Style::Default },
+                { .content = "Hello", .style = ants::Style::Auto },
+            } })
+        );
+        // clang-format on
+
+        str.set_styled_content(7, "World", ants::Style::Highlight);
+        EXPECT_EQ(str.content(), "     HeWorld");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "     ", .style = ants::Style::Default },
+                { .content = "He", .style = ants::Style::Auto },
+                { .content = "World", .style = ants::Style::Highlight },
+            } })
+        );
+        // clang-format on
+
+        str.set_styled_content(15, "C++", ants::Style::Auto, ants::Style::custom(2));
+        EXPECT_EQ(str.content(), "     HeWorld   C++");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "     ", .style = ants::Style::Default },
+                { .content = "He", .style = ants::Style::Auto },
+                { .content = "World", .style = ants::Style::Highlight },
+                { .content = "   ", .style = ants::Style::Default },
+                { .content = "C++", .style = ants::Style::custom(2) },
+            } })
+        );
+        // clang-format on
+
+        str.set_styled_content(3, "Hello", ants::Style::Highlight, ants::Style::Default);
+        EXPECT_EQ(str.content(), "   Helloorld   C++");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "   ", .style = ants::Style::Default },
+                { .content = "Helloorld", .style = ants::Style::Highlight },
+                { .content = "   ", .style = ants::Style::Default },
+                { .content = "C++", .style = ants::Style::custom(2) },
+            } })
+        );
+        // clang-format on
+
+        str.set_styled_content(5, "", ants::Style::LineNumber);
+        EXPECT_EQ(str.content(), "   Helloorld   C++");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "   ", .style = ants::Style::Default },
+                { .content = "Helloorld", .style = ants::Style::Highlight },
+                { .content = "   ", .style = ants::Style::Default },
+                { .content = "C++", .style = ants::Style::custom(2) },
+            } })
+        );
+        // clang-format on
+    }
+
+    {
+        auto str = ants::StyledString();
+        auto const content = ants::StyledString::styled("Hello World", ants::Style::Highlight)
+                                 .with_style(ants::Style::Auto, 6);
+
+        str.set_styled_content(5, content.styled_line_parts().front());
+        EXPECT_EQ(str.content(), "     Hello World");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "     ", .style = ants::Style::Default },
+                { .content = "Hello ", .style = ants::Style::Highlight },
+                { .content = "World", .style = ants::Style::Auto },
+            } })
+        );
+        // clang-format on
+
+        str.set_styled_content(12, content.styled_line_parts().front());
+        EXPECT_EQ(str.content(), "     Hello WHello World");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "     ", .style = ants::Style::Default },
+                { .content = "Hello ", .style = ants::Style::Highlight },
+                { .content = "W", .style = ants::Style::Auto },
+                { .content = "Hello ", .style = ants::Style::Highlight },
+                { .content = "World", .style = ants::Style::Auto },
+            } })
+        );
+        // clang-format on
+
+        str.set_styled_content(2, content.styled_line_parts().front());
+        EXPECT_EQ(str.content(), "  Hello Worldello World");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "  ", .style = ants::Style::Default },
+                { .content = "Hello ", .style = ants::Style::Highlight },
+                { .content = "World", .style = ants::Style::Auto },
+                { .content = "ello ", .style = ants::Style::Highlight },
+                { .content = "World", .style = ants::Style::Auto },
+            } })
+        );
+        // clang-format on
+
+        str.set_styled_content(2, content.styled_line_parts().front(), ants::Style::Addition);
+        EXPECT_EQ(str.content(), "  Hello Worldello World");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "  ", .style = ants::Style::Default },
+                { .content = "Hello ", .style = ants::Style::Highlight },
+                { .content = "World", .style = ants::Style::Addition },
+                { .content = "ello ", .style = ants::Style::Highlight },
+                { .content = "World", .style = ants::Style::Auto },
+            } })
+        );
+        // clang-format on
+
+        str.set_styled_content(10, {});
+        EXPECT_EQ(str.content(), "  Hello Worldello World");
+        // clang-format off
+        EXPECT_EQ(
+            str.styled_line_parts(),
+            (LineParts { {
+                { .content = "  ", .style = ants::Style::Default },
+                { .content = "Hello ", .style = ants::Style::Highlight },
+                { .content = "World", .style = ants::Style::Addition },
+                { .content = "ello ", .style = ants::Style::Highlight },
+                { .content = "World", .style = ants::Style::Auto },
+            } })
+        );
+        // clang-format on
+    }
+}
 }  // namespace
