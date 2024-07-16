@@ -51,6 +51,14 @@ public:
         return content_;
     }
 
+    auto operator[](std::size_t index) const -> char {
+        return content_[index];
+    }
+
+    auto operator[](std::size_t index) -> char& {
+        return content_[index];
+    }
+
     auto empty() const -> bool {
         return content_.empty();
     }

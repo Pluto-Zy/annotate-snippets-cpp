@@ -104,6 +104,25 @@ public:
         ///                This label is rendered at the far right of the annotated "variable" word.
         Right,
     } label_position = Left;
+    /// Represents the alignment of line numbers.
+    enum LineNumAlignment : std::uint8_t {
+        /// Aligns line numbers to the left.
+        ///
+        /// For example:
+        ///
+        ///     1   | foo(abc + def)
+        ///     ...
+        ///     100 | bar(abc + def)
+        AlignLeft,
+        /// Aligns line numbers to the right.
+        ///
+        /// For example:
+        ///
+        ///       1 | foo(abc + def)
+        ///     ...
+        ///     100 | bar(abc + def)
+        AlignRight,
+    } line_num_alignment = AlignRight;
 
     template <class Level>
     auto render_diag(Diag<Level> diag) const -> StyledString {

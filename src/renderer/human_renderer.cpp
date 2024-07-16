@@ -14,6 +14,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <queue>
 #include <ranges>
 #include <span>
@@ -203,6 +204,36 @@ namespace {
 /// Renders the line number and its separator portion without the line number itself.
 void render_line_number(StyledString& render_target, unsigned max_line_num_len) {
     render_target.append_spaces(max_line_num_len + 1);
+    render_target.append("|", ants::Style::LineNumber);
+}
+
+/// Renders line numbers according to the specified alignment, along with the vertical bar separator
+/// between the line number and the source code.
+void render_line_number(
+    StyledString& render_target,
+    unsigned max_line_num_len,
+    unsigned line_num,
+    HumanRenderer::LineNumAlignment line_num_alignment
+) {
+    std::string const line_num_str = std::to_string(line_num);
+
+    switch (line_num_alignment) {
+    case HumanRenderer::AlignLeft:
+        render_target.append(line_num_str, ants::Style::LineNumber);
+        // Adds sufficient spaces to align the separator.
+        render_target.append_spaces(max_line_num_len + 1 - line_num_str.size());
+        break;
+    case HumanRenderer::AlignRight:
+        // Adds sufficient spaces to ensure the line number text is right-aligned.
+        render_target.append_spaces(max_line_num_len - line_num_str.size());
+        render_target.append(line_num_str, ants::Style::LineNumber);
+        // Adds a single space between the line number and the separator.
+        render_target.append_spaces(1);
+        break;
+    default:
+        std::unreachable();
+    }
+
     render_target.append("|", ants::Style::LineNumber);
 }
 
@@ -501,7 +532,7 @@ struct Annotation {
             //
             //     func(arg)
             //          ^^^   <-- The range of the underline is the same as the annotation range
-            return std::make_pair(col_beg.display, col_end.display);
+            return std::make_tuple(col_beg.display, col_end.display);
         case Annotation::MultilineHead:
         case Annotation::MultilineTail:
             // For the head and tail of multi-line annotations, we only render a width of 1
@@ -517,11 +548,60 @@ struct Annotation {
             // Note that for `MultilineHead` and `MultilineTail`, their `col_beg` member stores the
             // depth of the multi-line annotation, while `col_end` points to the position just after
             // the last byte of the annotated range in this line.
-            return std::make_pair(col_end.display - 1, col_end.display);
+            return std::make_tuple(col_end.display - 1, col_end.display);
         default:
             // For other types, do not render an underline.
-            return std::make_pair(0u, 0u);
+            return std::make_tuple(0u, 0u);
         }
+    }
+
+    /// Calculate the display range for the label of the annotation.
+    ///
+    /// If the annotation is rendered inline (i.e., `render_level` is 0), the label follows the
+    /// annotation's underline:
+    ///
+    ///     foo(variable)
+    ///         ^^^^^^^^ inline label
+    ///
+    /// Otherwise, if `label_position` is `HumanRenderer::Left`, the label is rendered at the far
+    /// left of the annotated "variable":
+    ///
+    ///     foo(variable + def)
+    ///         ^^^^^^^^   ^^^
+    ///         |
+    ///         This label is rendered at the far left of the annotated "variable" word.
+    ///
+    /// Otherwise, it is rendered at the far right:
+    ///
+    ///     foo(variable + def)
+    ///         ^^^^^^^^   ^^^
+    ///                |
+    ///                This label is rendered at the far right of the annotated "variable" word.
+    ///
+    /// It's worth noting that there is no need to differentiate between single-line and multiline
+    /// annotations, as the underline width for multiline annotations is 1, which ensures that the
+    /// rendering effect is the same regardless of the `label_position` value.
+    auto label_display_range(  //
+        HumanRenderer::LabelPosition label_position
+    ) const -> std::tuple<unsigned, unsigned> {
+        unsigned const label_beg = [&] {
+            if (render_level == 0) {
+                return col_end.display + 1;
+            } else {
+                auto const [underline_beg, underline_end] = underline_display_range();
+
+                switch (label_position) {
+                case HumanRenderer::Left:
+                    return underline_beg;
+                case HumanRenderer::Right:
+                    return underline_end - 1;
+                default:
+                    std::unreachable();
+                }
+            }
+        }();
+
+        return std::make_tuple(label_beg, label_beg + label_display_width);
     }
 
 private:
@@ -582,6 +662,526 @@ struct AnnotatedLine {
     bool omitted;
 
     explicit AnnotatedLine(bool omitted = false) : line_display_width(0), omitted(omitted) { }
+
+    /// Renders this source code line and all its annotations into `render_target`.
+    void render(
+        StyledString& render_target,
+        unsigned max_line_num_len,
+        unsigned line_num,
+        unsigned depth_num,
+        HumanRenderer const& human_renderer
+    ) {
+        // Calculate how many lines are needed to accommodate all rendered annotations and their
+        // labels. We use this array to store the number of lines required for each render level.
+        // This actually depends on the maximum number of lines of labels belonging to each level.
+        std::vector<unsigned> const level_line_nums = [&] {
+            std::vector<unsigned> level_line_nums;
+            for (Annotation const& annotation : annotations) {
+                // Skip `MultilineBody` annotations, as these do not have associated underlines or
+                // labels.
+                if (annotation.type == Annotation::MultilineBody) {
+                    continue;
+                }
+
+                level_line_nums.resize(std::ranges::max(
+                    static_cast<unsigned>(level_line_nums.size()),
+                    annotation.render_level + 1
+                ));
+
+                // Update the line count information for the render level of this annotation.
+                level_line_nums[annotation.render_level] = std::ranges::max({
+                    level_line_nums[annotation.render_level],
+                    // `label.size()` is the number of lines for the label.
+                    static_cast<unsigned>(annotation.label.size()),
+                    // We must ensure there is at least 1 line at this level, as `annotation.label`
+                    // may be empty in some cases.
+                    1u,
+                });
+            }
+
+            if (level_line_nums.size() > 1) {
+                // We increment the first element of `level_line_nums` by 1. The purpose is that
+                // when calculating the prefix sum later, each element from the second element
+                // (i.e., index 1) will be incremented by 1.
+                //
+                // This is because we render annotations in inline and non-inline formats
+                // differently:
+                //
+                // 1 |     func(args)
+                //   |     ^^^^ ^^^^ label  <-- Render level 0, starting at line 0
+                //   |     |
+                //   |     label            <-- Render level 1, starting at line 2 instead of
+                //                              line 1.
+                //
+                // For the example above, `level_line_nums` computed as [1, 1] means one line is
+                // needed for both render level 0 and 1. By incrementing the first element of
+                // `level_line_nums` to [2, 1], the prefix sum (i.e., `prefix_sum` array computed
+                // below) is [0, 2, 3], correctly indicating that render level 1 starts on line 2
+                // instead of line 1.
+                //
+                // Note that this adjustment is only made when `level_line_nums` contains at least
+                // two elements (i.e., we have at least two different render levels). If we only
+                // have one render level (i.e., render level 0), there is no need nor possibility to
+                // add an additional line for it.
+                ++level_line_nums.front();
+            }
+
+            // Calculate the prefix sum. This allows us to quickly determine the range of lines for
+            // a given render level. We reserve a 0 at the beginning of the prefix sum, so
+            // [prefix_sum[level], prefix_sum[level + 1]) represents the range of lines
+            // corresponding to render level `level`.
+            std::vector<unsigned> prefix_sum(level_line_nums.size() + 1);
+            std::partial_sum(
+                level_line_nums.begin(),
+                level_line_nums.end(),
+                std::ranges::next(prefix_sum.begin())
+            );
+
+            return prefix_sum;
+        }();
+
+        // We create a `StyledString` for each line to facilitate later rendering.
+        // `level_line_nums.back()` is the total number of lines required to render these
+        // annotations.
+        std::vector<StyledString> rendered_lines(level_line_nums.back());
+
+        // Represents the starting rendering position for the source code line, and all annotations'
+        // underlines and labels should start from this position. For example:
+        //
+        // 123 |       func(args)
+        //     |  _____^
+        //     | |
+        //         ^^^^^^^^^^^^^^ Actual range of the code line
+        //         |
+        //         Starting rendering position of the code line
+        //
+        // The indentation before the code line consists of the following parts:
+        //
+        // 1. Space of width `max_line_num_len + 1` for displaying the line number.
+        // 2. A line number separator of width 1.
+        // 3. Space of width `depth_num + 1` reserved for the body of any multiline annotations. If
+        //    `depth_num` is 0, no space is reserved.
+        // 4. A space of width 1 between the line number separator and the code.
+        //
+        // Since we render the line number and its separator separately, here we only consider the
+        // indentation for part 3.
+        unsigned const source_code_indentation = depth_num == 0 ? 0 : depth_num + 1;
+
+        // We first render the vertical lines that connect labels and underlines.
+        //
+        // They need to be rendered in a certain order: from highest to lowest render level, and for
+        // annotations at the same render level, from right to left based on their position. This
+        // ensures the correct overlap relationship between all connection lines, as we expect to
+        // achieve an output like this:
+        //
+        // 1 |     func(args)
+        //   |     ^^^^     ^
+        //   |  ______|_____|
+        //   | |      |
+        //
+        // Instead of
+        //
+        // 1 |     func(args)
+        //   |     ^^^^     ^
+        //   |  ____________|   <-- Incorrect overlap relationship
+        //   | |      |
+        std::ranges::sort(annotations, [&](Annotation const& lhs, Annotation const& rhs) {
+            if (lhs.render_level != rhs.render_level) {
+                return rhs.render_level < lhs.render_level;
+            } else {
+                return std::get<0>(rhs.label_display_range(human_renderer.label_position))
+                    < std::get<0>(lhs.label_display_range(human_renderer.label_position));
+            }
+        });
+
+        // Draw all connecting lines in the sorted order, which includes the vertical lines
+        // connecting underlines and labels, as well as horizontal lines connecting to the body of
+        // multiline annotations.
+        //
+        // After this loop, we have:
+        //
+        // 1 |     func(args)   <-- This line has not been rendered yet; it's just for illustrative
+        //   |                      purposes.
+        //   |  ______|_____|
+        //   | |      |
+        for (Annotation const& annotation : annotations) {
+            // Style of the connecting lines.
+            Style const connector_style =
+                annotation.is_primary ? Style::PrimaryUnderline : Style::SecondaryUnderline;
+
+            // When the render level is not 0, render the connecting lines from the annotation
+            // underline to the label.
+            if (annotation.render_level != 0) {
+                // Position of the connecting line.
+                unsigned const connector_position =
+                    std::get<0>(annotation.label_display_range(human_renderer.label_position))
+                    + source_code_indentation;
+
+                // clang-format off
+                for (StyledString& line : rendered_lines
+                        | std::views::take(level_line_nums[annotation.render_level])
+                        | std::views::drop(1))
+                // clang-format on
+                {
+                    line.set_styled_content(connector_position, "|", connector_style);
+                }
+            }
+
+            // For the head and tail of multiline annotations, we also need to draw horizontal
+            // connecting lines that link their body and the end of the connecting line.
+            if (annotation.type == Annotation::MultilineHead
+                || annotation.type == Annotation::MultilineTail) {
+                // Calculate the start and end positions of the horizontal connecting line.
+                //
+                //     func(args)
+                //  ____________-
+                // ^            ^^
+                // |            ||
+                // col_beg      |col_end
+                //              underline_display_range()[0]
+                unsigned const connector_beg = annotation.col_beg.display + 1;
+                unsigned const connector_end =
+                    std::get<0>(annotation.underline_display_range()) + source_code_indentation;
+
+                // The index of the line where the horizontal connecting line is to be inserted. If
+                // the render level is 0 (i.e., inline format), it is inserted in the line of the
+                // label, otherwise in the line above the label.
+                unsigned const line_idx =
+                    annotation.render_level == 0 ? 0 : level_line_nums[annotation.render_level] - 1;
+
+                rendered_lines[line_idx].set_styled_content(
+                    connector_beg,
+                    std::string(connector_end - connector_beg, '_'),
+                    connector_style
+                );
+            }
+
+            // For all multiline annotations, we need to draw their body, i.e., the vertical line
+            // connecting the head and tail.
+            auto const body_lines = [&] {
+                switch (annotation.type) {
+                case Annotation::MultilineHead:
+                    // For the head, it should start from the first line of the label and connect to
+                    // the last line of `rendered_lines`. For inline rendered annotations, it starts
+                    // from the line below the label.
+                    //
+                    // 123 |      func(args)
+                    //     |  ________^
+                    //     | |                  <-- Starting position
+                    return std::span(rendered_lines)
+                        | std::views::drop(
+                               annotation.render_level == 0
+                                   ? 1
+                                   : level_line_nums[annotation.render_level]
+                        );
+                case Annotation::MultilineTail:
+                    // For the tail, it should start from the first line of `rendered_lines` and
+                    // connect to the line where the horizontal connecting line is located.
+                    //
+                    // 123 | |    func(args)
+                    //     | |________^         <-- Ending position
+                    return std::span(rendered_lines)
+                        | std::views::take(
+                               annotation.render_level == 0
+                                   ? 0
+                                   : level_line_nums[annotation.render_level] - 1
+                        );
+                case Annotation::MultilineBody:
+                    // For the body of multiline annotations, it should traverse all lines.
+                    return std::span(rendered_lines);
+                default:
+                    return std::span<StyledString>();
+                }
+            }();
+
+            for (StyledString& line : body_lines) {
+                line.set_styled_content(annotation.col_beg.display, "|", connector_style);
+            }
+        }
+
+        // This loop renders all the labels of the annotations. After this loop, we have:
+        //
+        // 1 |     func(args)   <-- This line has not been rendered yet; it's just for illustrative
+        //   |                      purposes.
+        //   |  ______|_____|
+        //   | |      |     label
+        //   | |      label
+        for (Annotation const& annotation : annotations) {
+            if (!annotation.label.empty()) {
+                // The starting column for rendering the label.
+                unsigned const label_col_beg =
+                    std::get<0>(annotation.label_display_range(human_renderer.label_position));
+                // The starting line for rendering the label.
+                unsigned const label_line_beg = level_line_nums[annotation.render_level];
+
+                // Render the label line by line.
+                for (unsigned const line_idx : std::views::iota(0zu, annotation.label.size())) {
+                    // The target for the `line_idx` line of the label.
+                    StyledString& target_line = rendered_lines[label_line_beg + line_idx];
+                    // The content of the `line_idx` line of the label.
+                    //
+                    // TODO: When the compiler supports it, rewrite this loop using
+                    // `std::views::enumerate`.
+                    std::vector<StyledStringViewPart> const& label_line =
+                        annotation.label[line_idx];
+
+                    target_line.set_styled_content(
+                        label_col_beg,
+                        label_line,
+                        annotation.is_primary ? Style::PrimaryLabel : Style::SecondaryLabel
+                    );
+                }
+            }
+        }
+
+        // Render all underlines for the annotations. After this operation, we have:
+        //
+        // 1 |     func(args)   <-- This line has not been rendered yet; it's just for illustrative
+        //   |     ^^^^     ^       purposes.
+        //   |  ______|_____|
+        //   | |      |     label
+        //   | |      label
+        //
+        // We must render the underlines in a specific order to ensure that when underlines overlap,
+        // they maintain a certain order. Specifically, we need to meet the following 2
+        // requirements:
+        //
+        // 1. Underlines of primary annotations should appear above those of secondary annotations.
+        // For example, the rendering of:
+        //
+        //     func(args)
+        //     ------
+        //         ^^^^^^
+        //
+        // should result in:
+        //
+        //     func(args)
+        //     ----^^^^^^
+        //
+        // rather than:
+        //     func(args)
+        //     ------^^^^
+        //
+        // 2. We should ensure as many underlines as possible are displayed. For example, the
+        // rendering of:
+        //
+        //     func(args)
+        //         ^^^^^^
+        //          ----
+        //
+        // should result in:
+        //
+        //     func(args)
+        //         ^----^
+        //
+        // rather than:
+        //
+        //     func(args)
+        //         ^^^^^^
+
+        auto const primary_annotations =
+            std::ranges::partition(annotations, [](Annotation const& annotation) {
+                return !annotation.is_primary;
+            });
+        auto const secondary_annotations = std::ranges::subrange(
+            std::ranges::begin(annotations),
+            std::ranges::begin(primary_annotations)
+        );
+
+        // We first render all secondary annotation underlines, then the primary annotation
+        // underlines, ensuring we meet the first requirement.
+        for (Annotation const& annotation : annotations) {
+            auto const [underline_beg, underline_end] = annotation.underline_display_range();
+
+            std::string const underline(
+                underline_end - underline_beg,
+                annotation.is_primary ? human_renderer.primary_underline
+                                      : human_renderer.secondary_underline
+            );
+            Style const underline_style =
+                annotation.is_primary ? Style::PrimaryUnderline : Style::SecondaryUnderline;
+
+            rendered_lines.front().set_styled_content(
+                underline_beg + source_code_indentation,
+                underline,
+                underline_style
+            );
+        }
+
+        // Next, we identify all the underlines of secondary annotations that are completely covered
+        // by the underlines of primary annotations and render them to the forefront. This ensures
+        // we meet the second requirement.
+        for (Annotation const& secondary_annotation : secondary_annotations) {
+            auto const [secondary_beg, secondary_end] =
+                secondary_annotation.underline_display_range();
+
+            for (Annotation const& primary_annotation : primary_annotations) {
+                auto const [primary_beg, primary_end] =
+                    primary_annotation.underline_display_range();
+
+                // If the primary annotation `primary_annotation` completely covers the underline of
+                // `secondary_annotation`, then render `secondary_annotation` at the front. Note
+                // that if these two annotations have exactly the same underline range, we do not
+                // prioritize `secondary_annotation` because this does not increase the number of
+                // visible underlines.
+                if (primary_beg <= secondary_beg && secondary_end <= primary_end
+                    && primary_end - primary_beg != secondary_end - secondary_beg) {
+                    rendered_lines.front().set_styled_content(
+                        secondary_beg + source_code_indentation,
+                        std::string(
+                            secondary_end - secondary_beg,
+                            human_renderer.secondary_underline
+                        ),
+                        Style::SecondaryUnderline
+                    );
+                }
+            }
+        }
+
+        // At this point, all annotations have been rendered. We will render the results into the
+        // render target.
+
+        // Render the source code line.
+        render_target.append(  //
+            render_source_line(
+                max_line_num_len,
+                line_num,
+                depth_num,
+                human_renderer.line_num_alignment,
+                human_renderer.display_tab_width
+            )
+                .styled_line_parts()
+                .front()
+        );
+
+        // Render the annotations.
+        for (StyledString const& line : rendered_lines) {
+            render_target.append_newline();
+
+            // Render the line number and separator for each line. For annotation lines, these lines
+            // are not associated with source code, so the line number part is empty.
+            render_line_number(render_target, max_line_num_len);
+            // There is always one space between the line number separator and the actual code line.
+            render_target.append_spaces(1);
+
+            render_target.append(line.styled_line_parts().front());
+        }
+    }
+
+private:
+    /// Renders a source code line. For example:
+    ///
+    /// 10 | |     func(args)    <-- This function renders this line.
+    ///    | |_________^
+    ///
+    /// Three parts need to be rendered:
+    ///
+    /// 10 | |     func(args)
+    /// ^^^^ ^ ^^^^^^^^^^^^^^ Normalized source code line
+    /// |    |
+    /// |    Body of a multiline annotation (vertical line connecting the start and end of the
+    /// |    multiline annotation)
+    /// Line number and its separator
+    auto render_source_line(
+        unsigned max_line_num_len,
+        unsigned line_num,
+        unsigned depth_num,
+        HumanRenderer::LineNumAlignment line_num_alignment,
+        unsigned display_tab_width
+    ) const -> StyledString {
+        // Determine where to draw the vertical line "|" indicating the body of a multiline
+        // annotation before the source code line. The following 2 scenarios require us to draw "|"
+        // before the *source code line*:
+        //
+        // 1. The current line has a `MultilineBody` annotation, indicating that a multiline
+        //    annotation passes through this line.
+        // 2. The current line has a `MultilineTail` annotation, indicating that the current line is
+        //    the end of a multiline annotation.
+        //
+        // For example:
+        //
+        //     func(arg1,
+        //  _______^
+        // |        arg2,    <-- Current line with a `MultilineBody` annotation.
+        // |        arg3)    <-- Current line with a `MultilineTail` annotation.
+        // |____________^
+
+        // Rendering result of the vertical lines for the multiline annotation body that should be
+        // inserted before the source code line.
+        StyledString vertical_line_content;
+        // All lines have the same indentation, which is `depth_num`.
+        vertical_line_content.append_spaces(depth_num);
+
+        for (Annotation const& annotation : annotations) {
+            if (annotation.type == Annotation::MultilineBody
+                || annotation.type == Annotation::MultilineTail) {
+                // For `MultilineBody` and `MultilineTail`, their `col_beg` member stores the
+                // position where the underline should be drawn (i.e., the depth of the annotation).
+                unsigned const depth = annotation.col_beg.display;
+
+                vertical_line_content[depth] = '|';
+                vertical_line_content.set_style(
+                    annotation.is_primary ? ants::Style::PrimaryUnderline
+                                          : ants::Style::SecondaryUnderline,
+                    depth,
+                    depth + 1
+                );
+            }
+        }
+
+        StyledString render_target;
+
+        if (omitted) {
+            // If the code line is omitted, render it as "...".
+            render_target.append("...", ants::Style::LineNumber);
+
+            if (!vertical_line_content.empty()) {
+                // Next, we need to add spaces to ensure that `vertical_line_content` is inserted in
+                // the correct position.
+                //
+                // 123 | |   code line
+                // 124 | |   code line
+                // ...   |
+                //    ^^^ We need to add these spaces
+                //
+                // There are characters with a width of `max_line_num_len + 1` before the line
+                // number separator, plus the separator itself, and we need to insert another space
+                // between the line number separator and the body of the multiline annotation, so we
+                // need a total indentation of `max_line_num_len + 3`. As we have already rendered
+                // the 3-width "..." string, we still need to insert `max_line_num_len` spaces.
+                render_target.append_spaces(max_line_num_len);
+                // Insert `vertical_line_content`.
+                //
+                // Since `vertical_line_content` is not empty, the return value of
+                // `styled_line_parts()` is also not empty.
+                render_target.append(vertical_line_content.styled_line_parts().front());
+            }
+        } else {
+            // To fully render the code line, we need to render the line number.
+            render_line_number(render_target, max_line_num_len, line_num, line_num_alignment);
+
+            if (!vertical_line_content.empty()) {
+                // Insert a space between the line number separator and the body of the multiline
+                // annotation.
+                render_target.append_spaces(1);
+                // Insert `vertical_line_content`.
+                //
+                // Since `vertical_line_content` is not empty, the return value of
+                // `styled_line_parts()` is also not empty.
+                render_target.append(vertical_line_content.styled_line_parts().front());
+            }
+
+            // Insert the source code line. Note that we always insert a space before the source
+            // code line.
+            render_target.append_spaces(1);
+            render_target.append(  //
+                normalize_source(source_line, display_tab_width),
+                ants::Style::SourceCode
+            );
+        }
+
+        return render_target;
+    }
 };
 
 class AnnotatedLines {
@@ -635,6 +1235,10 @@ public:
 
         return result;
     };
+
+    auto annotated_lines() -> std::map<unsigned, AnnotatedLine>& {
+        return lines_;
+    }
 
     auto annotated_lines() const -> std::map<unsigned, AnnotatedLine> const& {
         return lines_;
@@ -1513,44 +2117,19 @@ private:
                 ++to.indegree;
             }
 
-            /// Calculate the display range for an annotation's label.
-            ///
-            /// If `label_position_` is `HumanRenderer::Left`, the label is rendered at the far left
-            /// of the annotated "variable":
-            ///
-            ///     foo(variable + def)
-            ///         ^^^^^^^^   ^^^
-            ///         |
-            ///         This label is rendered at the far left of the annotated "variable" word.
-            ///
-            /// Otherwise, it is rendered at the far right:
-            ///
-            ///     foo(variable + def)
-            ///         ^^^^^^^^   ^^^
-            ///                |
-            ///                This label is rendered at the far right of the annotated "variable"
-            ///                word.
-            auto compute_label_display_range(  //
-                Annotation const& annotation
-            ) const -> std::tuple<unsigned, unsigned> {
-                auto const [underline_beg, underline_end] = annotation.underline_display_range();
-                unsigned const label_beg =
-                    label_position_ == HumanRenderer::Left ? underline_beg : underline_end - 1;
-                return std::make_tuple(label_beg, label_beg + annotation.label_display_width);
-            }
-
             /// Build edges in the directed graph based on the three rules above: if vertex A's
             /// level needs to be at least n greater than vertex B's, establish an edge from B to A
             /// with a weight of n.
             void build_graph() {
                 for (Vertex& self : vertices_) {
-                    auto const [self_beg, self_end] = compute_label_display_range(*self.annotation);
+                    auto const [self_beg, self_end] =
+                        self.annotation->label_display_range(label_position_);
                     bool const is_multiline = self.annotation->type == Annotation::MultilineHead
                         || self.annotation->type == Annotation::MultilineTail;
 
                     for (Vertex& other : vertices_) {
                         auto const [other_beg, other_end] =
-                            compute_label_display_range(*other.annotation);
+                            other.annotation->label_display_range(label_position_);
 
                         // Rule 1: If a1 < b1 <= a2, then A's render level should be greater than
                         // B's.
@@ -1600,7 +2179,18 @@ void render_annotated_source(
     // source code to separate them.
     render_line_number(render_target, max_line_num_len);
 
-    AnnotatedLines const annotated_lines = AnnotatedLines::from_source(source, renderer);
+    AnnotatedLines annotated_lines = AnnotatedLines::from_source(source, renderer);
+    for (auto& [line_num, line] : annotated_lines.annotated_lines()) {
+        render_target.append_newline();
+
+        line.render(
+            render_target,
+            max_line_num_len,
+            line_num + source.first_line_number(),
+            annotated_lines.depth_num(),
+            renderer
+        );
+    }
 }
 }  // namespace
 
@@ -1609,15 +2199,16 @@ void HumanRenderer::render_annotated_sources(
     std::vector<AnnotatedSource>& sources,
     unsigned max_line_num_len
 ) const {
-    // clang-format off
-    for (unsigned source_idx = 0;
-         AnnotatedSource& source : sources | std::views::filter([](AnnotatedSource const& source) {
-             return !source.primary_spans().empty() || !source.secondary_spans().empty();
-        }))
-    // clang-format on
-    {
+    for (unsigned source_idx = 0; AnnotatedSource & source : sources) {
+        if (source.primary_spans().empty() && source.secondary_spans().empty()) {
+            continue;
+        }
+
         render_target.append_newline();
         render_file_line_col(render_target, source, max_line_num_len, source_idx == 0);
+
+        render_target.append_newline();
+        render_annotated_source(render_target, source, *this, max_line_num_len);
 
         ++source_idx;
     }
