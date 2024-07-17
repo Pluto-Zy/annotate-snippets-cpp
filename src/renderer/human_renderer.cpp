@@ -868,24 +868,39 @@ struct AnnotatedLine {
                     // 123 |      func(args)
                     //     |  ________^
                     //     | |                  <-- Starting position
-                    return std::span(rendered_lines)
+                    //
+                    // Note that before P1739R4, providing `std::views::drop` with `std::span` would
+                    // result in `std::ranges::drop_view` rather than `std::span`, causing
+                    // inconsistent return types in some compilers (like g++-11) within this lambda
+                    // expression's branches. Therefore, we supply `drop_view` as an argument to
+                    // `std::span`.
+                    return std::span(
+                        rendered_lines
                         | std::views::drop(
-                               annotation.render_level == 0
-                                   ? 1
-                                   : level_line_nums[annotation.render_level]
-                        );
+                            annotation.render_level == 0 ? 1
+                                                         : level_line_nums[annotation.render_level]
+                        )
+                    );
                 case Annotation::MultilineTail:
                     // For the tail, it should start from the first line of `rendered_lines` and
                     // connect to the line where the horizontal connecting line is located.
                     //
                     // 123 | |    func(args)
                     //     | |________^         <-- Ending position
-                    return std::span(rendered_lines)
+                    //
+                    // Note that before P1739R4, providing `std::views::take` with `std::span` would
+                    // result in `std::ranges::take_view` rather than `std::span`, causing
+                    // inconsistent return types in some compilers (like g++-11) within this lambda
+                    // expression's branches. Therefore, we supply `take_view` as an argument to
+                    // `std::span`.
+                    return std::span(
+                        rendered_lines
                         | std::views::take(
-                               annotation.render_level == 0
-                                   ? 0
-                                   : level_line_nums[annotation.render_level] - 1
-                        );
+                            annotation.render_level == 0
+                                ? 0
+                                : level_line_nums[annotation.render_level] - 1
+                        )
+                    );
                 case Annotation::MultilineBody:
                     // For the body of multiline annotations, it should traverse all lines.
                     return std::span(rendered_lines);
