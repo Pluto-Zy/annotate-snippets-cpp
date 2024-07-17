@@ -74,6 +74,26 @@ auto HumanRenderer::compute_max_line_num_len(AnnotatedSource const& source) cons
     return compute_digits_num(result + source.first_line_number());
 }
 
+namespace detail {
+namespace {
+#ifdef __cpp_lib_unreachable
+using std::unreachable;
+#else
+/// `std::unreachable()` implementation from
+/// [cppreference](https://en.cppreference.com/w/cpp/utility/unreachable).
+[[noreturn]] constexpr void unreachable() {
+    // Uses compiler specific extensions if possible. Even if no extension is used, undefined
+    // behavior is still raised by an empty function body and the noreturn attribute.
+    #if defined(_MSC_VER) && !defined(__clang__)  // MSVC
+    __assume(false);
+    #else  // GCC, Clang
+    __builtin_unreachable();
+    #endif
+}
+#endif
+}  // namespace
+}  // namespace detail
+
 namespace {
 /// Renders a multi-line message `message` with indentation `indentation` onto `render_target`. The
 /// first line of `message` will continue directly from the existing content in `render_target`,
@@ -231,7 +251,7 @@ void render_line_number(
         render_target.append_spaces(1);
         break;
     default:
-        std::unreachable();
+        detail::unreachable();
     }
 
     render_target.append("|", ants::Style::LineNumber);
@@ -596,7 +616,7 @@ struct Annotation {
                 case HumanRenderer::Right:
                     return underline_end - 1;
                 default:
-                    std::unreachable();
+                    detail::unreachable();
                 }
             }
         }();
