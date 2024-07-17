@@ -950,7 +950,8 @@ struct AnnotatedLine {
                 unsigned const label_line_beg = level_line_nums[annotation.render_level];
 
                 // Render the label line by line.
-                for (unsigned const line_idx : std::views::iota(0zu, annotation.label.size())) {
+                for (unsigned const line_idx :
+                     std::views::iota(std::size_t(0), annotation.label.size())) {
                     // The target for the `line_idx` line of the label.
                     StyledString& target_line = rendered_lines[label_line_beg + line_idx];
                     // The content of the `line_idx` line of the label.
