@@ -709,15 +709,19 @@ struct AnnotatedLine {
                 ));
 
                 // Update the line count information for the render level of this annotation.
-                level_line_nums[annotation.render_level] = std::ranges::max({
+                level_line_nums[annotation.render_level] = std::ranges::max(
                     level_line_nums[annotation.render_level],
                     // `label.size()` is the number of lines for the label.
-                    static_cast<unsigned>(annotation.label.size()),
-                    // We must ensure there is at least 1 line at this level, as `annotation.label`
-                    // may be empty in some cases.
-                    1u,
-                });
+                    static_cast<unsigned>(annotation.label.size())
+                );
             }
+
+            // We must ensure there is at least 1 line at each level.
+            std::ranges::transform(
+                level_line_nums,
+                std::ranges::begin(level_line_nums),
+                [](unsigned line_num) { return std::ranges::max(line_num, 1u); }
+            );
 
             if (level_line_nums.size() > 1) {
                 // We increment the first element of `level_line_nums` by 1. The purpose is that
@@ -1595,7 +1599,7 @@ private:
              prev_iter = cur_iter++) {
             unsigned const prev_line_no = prev_iter->first;
             unsigned const cur_line_no = cur_iter->first;
-            if (cur_line_no - prev_line_no > max_unannotated_line_num) {
+            if (cur_line_no - prev_line_no - 1 > max_unannotated_line_num) {
                 // Insert a line that is marked as omitted.
                 if (cur_line_no - prev_line_no != 1) {
                     // Since the omitted line does not display a line number, the line number here
@@ -1739,7 +1743,7 @@ private:
 
             for (unsigned display_width = 0, chunk_begin = 0; auto& [byte, display] : col_display) {
                 std::string const normalized_source_chunk = normalize_source(
-                    annotated_line.source_line.substr(chunk_begin, byte),
+                    annotated_line.source_line.substr(chunk_begin, byte - chunk_begin),
                     display_tab_width
                 );
                 display_width += detail::display_width(normalized_source_chunk);
@@ -1754,6 +1758,8 @@ private:
                 } else {
                     chunk_begin = byte;
                 }
+
+                display = display_width;
             }
 
             // Finally, we write the results back to `annotated_line.annotations`.
