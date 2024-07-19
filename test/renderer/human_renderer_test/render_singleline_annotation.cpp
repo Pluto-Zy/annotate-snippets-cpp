@@ -334,6 +334,133 @@ TEST(HumanRendererSinglelineAnnotationTest, LabelPosition) {
   |             |                |
   |             object           This is a string literal.)"
     );
+
+    renderer.label_position = ants::HumanRenderer::Left;
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(
+                ants::Diag(Level::Warning, ants::StyledStringView::inferred("string literal"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(
+                                38,
+                                51,
+                                ants::StyledStringView::inferred("This is a string literal.")
+                            )
+                            .with_secondary_annotation(
+                                25,
+                                34,
+                                ants::StyledStringView::inferred("label")
+                            )
+                    )
+            )
+            .content(),
+        R"(warning: string literal
+ --> main.cpp:2:18
+  |
+2 |     std::cout << "Hello World" << '\n';
+  |     ---------    ^^^^^^^^^^^^^ This is a string literal.
+  |     |
+  |     label)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(
+                ants::Diag(Level::Warning, ants::StyledStringView::inferred("string literal"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(33, 34, ants::StyledStringView::inferred("label1"))
+                            .with_secondary_annotation(
+                                25,
+                                33,
+                                ants::StyledStringView::inferred("label2")
+                            )
+                    )
+            )
+            .content(),
+        R"(warning: string literal
+ --> main.cpp:2:13
+  |
+2 |     std::cout << "Hello World" << '\n';
+  |     --------^
+  |     |       |
+  |     label2  label1)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(
+                ants::Diag(Level::Warning, ants::StyledStringView::inferred("string literal"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(30, 32, ants::StyledStringView::inferred("label1"))
+                            .with_secondary_annotation(
+                                25,
+                                34,
+                                ants::StyledStringView::inferred("label2")
+                            )
+                    )
+            )
+            .content(),
+        R"(warning: string literal
+ --> main.cpp:2:10
+  |
+2 |     std::cout << "Hello World" << '\n';
+  |     -----^^-- label2
+  |          |
+  |          label1)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(
+                ants::Diag(Level::Warning, ants::StyledStringView::inferred("string literal"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(30, 37, ants::StyledStringView::inferred("label1"))
+                            .with_secondary_annotation(
+                                25,
+                                34,
+                                ants::StyledStringView::inferred("label2")
+                            )
+                    )
+            )
+            .content(),
+        R"(warning: string literal
+ --> main.cpp:2:10
+  |
+2 |     std::cout << "Hello World" << '\n';
+  |     -----^^^^^^^
+  |     |    |
+  |     |    label1
+  |     label2)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(
+                ants::Diag(Level::Warning, ants::StyledStringView::inferred("string literal"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(25, 37, ants::StyledStringView::inferred("label1"))
+                            .with_secondary_annotation(
+                                25,
+                                34,
+                                ants::StyledStringView::inferred("label2")
+                            )
+                    )
+            )
+            .content(),
+        R"(warning: string literal
+ --> main.cpp:2:5
+  |
+2 |     std::cout << "Hello World" << '\n';
+  |     ---------^^^ label1
+  |     |
+  |     label2)"
+    );
 }
 
 TEST(HumanRendererSinglelineAnnotationTest, LineNumAlignment) {
@@ -619,6 +746,359 @@ TEST(HumanRendererSinglelineAnnotationTest, Underline) {
   | ^^^^~^^^^~~~~~~~~~^^
 2 |     std::cout << "Hello World" << '\n';
   |                  ~~~~~~~~~~~~~)"
+    );
+}
+
+TEST(HumanRendererSinglelineAnnotationTest, MultilineLabel) {
+    std::string_view const source = R"(auto main() -> int {
+    std::cout << "Hello World" << '\n';
+    unsigned const result = 1 + 2;
+    std::cout << result << '\n';
+})";
+
+    ants::HumanRenderer renderer;
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(
+                ants::Diag(Level::Warning, ants::StyledStringView::inferred("string literal"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(
+                                25,
+                                34,
+                                ants::StyledStringView::inferred("line1\nline2")
+                            )
+                            .with_secondary_annotation(
+                                55,
+                                59,
+                                ants::StyledStringView::inferred("line1\nline2\nline3")
+                            )
+                    )
+            )
+            .content(),
+        R"(warning: string literal
+ --> main.cpp:2:5
+  |
+2 |     std::cout << "Hello World" << '\n';
+  |     ^^^^^^^^^ line1               ---- line1
+  |               line2                    line2
+  |                                        line3)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(
+                ants::Diag(Level::Warning, ants::StyledStringView::inferred("string literal"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(
+                                50,
+                                51,
+                                ants::StyledStringView::inferred("line1\nline2")
+                            )
+                            .with_secondary_annotation(
+                                55,
+                                59,
+                                ants::StyledStringView::inferred("line1\nline2\nline3")
+                            )
+                    )
+            )
+            .content(),
+        R"(warning: string literal
+ --> main.cpp:2:30
+  |
+2 |     std::cout << "Hello World" << '\n';
+  |                              ^    ---- line1
+  |                              |         line2
+  |                              |         line3
+  |                              line1
+  |                              line2)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(
+                ants::Diag(Level::Warning, ants::StyledStringView::inferred("string literal"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(
+                                50,
+                                51,
+                                ants::StyledStringView::inferred("line1\nline2")
+                            )
+                            .with_secondary_annotation(55, 59)
+                            .with_annotation(
+                                47,
+                                48,
+                                ants::StyledStringView::inferred("line1\nline2\nline3")
+                            )
+                    )
+            )
+            .content(),
+        R"(warning: string literal
+ --> main.cpp:2:30
+  |
+2 |     std::cout << "Hello World" << '\n';
+  |                           ^  ^    ----
+  |                           |  |
+  |                           |  line1
+  |                           |  line2
+  |                           line1
+  |                           line2
+  |                           line3)"
+    );
+}
+
+TEST(HumanRendererSinglelineAnnotationTest, MergeAnnotation) {
+    std::string_view const source = "func(args)";
+    ants::HumanRenderer renderer;
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(0, 4)
+                            .with_secondary_annotation(0, 4)
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:1
+  |
+1 | func(args)
+  | ^^^^)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_secondary_annotation(0, 4)
+                            .with_secondary_annotation(0, 4)
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp
+  |
+1 | func(args)
+  | ----)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(0, 4, ants::StyledStringView::inferred("label"))
+                            .with_secondary_annotation(0, 4)
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:1
+  |
+1 | func(args)
+  | ^^^^ label)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(0, 4, ants::StyledStringView::inferred("label1"))
+                            .with_secondary_annotation(
+                                0,
+                                4,
+                                ants::StyledStringView::inferred("label2")
+                            )
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:1
+  |
+1 | func(args)
+  | ^^^^ label1
+  |      label2)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(
+                                0,
+                                4,
+                                ants::StyledStringView::inferred("label1\nlabel2")
+                            )
+                            .with_secondary_annotation(
+                                0,
+                                4,
+                                ants::StyledStringView::inferred("label3")
+                            )
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:1
+  |
+1 | func(args)
+  | ^^^^ label1
+  |      label2
+  |      label3)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(0, 4)
+                            .with_secondary_annotation(
+                                0,
+                                4,
+                                ants::StyledStringView::inferred("label1\nlabel2")
+                            )
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:1
+  |
+1 | func(args)
+  | ^^^^ label1
+  |      label2)"
+    );
+}
+
+TEST(HumanRendererSinglelineAnnotationTest, SourceNormalization) {
+    std::string_view const source = "\tfunc(args1,\targs2)";
+    ants::HumanRenderer renderer;
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(0, 4, ants::StyledStringView::inferred("label1"))
+                            .with_secondary_annotation(
+                                5,
+                                19,
+                                ants::StyledStringView::inferred("label2")
+                            )
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:1
+  |
+1 |     func(args1,    args2)
+  | ^^^^^^^ ----------------- label2
+  | |
+  | label1)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp").with_annotation(6, 12)
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:7
+  |
+1 |     func(args1,    args2)
+  |          ^^^^^^)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp").with_annotation(6, 13)
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:7
+  |
+1 |     func(args1,    args2)
+  |          ^^^^^^^^^^)"
+    );
+
+    renderer.display_tab_width = 8;
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(0, 4, ants::StyledStringView::inferred("label1"))
+                            .with_secondary_annotation(
+                                5,
+                                19,
+                                ants::StyledStringView::inferred("label2")
+                            )
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:1
+  |
+1 |         func(args1,        args2)
+  | ^^^^^^^^^^^ --------------------- label2
+  | |
+  | label1)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp").with_annotation(6, 12)
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:7
+  |
+1 |         func(args1,        args2)
+  |              ^^^^^^)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp").with_annotation(6, 13)
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:7
+  |
+1 |         func(args1,        args2)
+  |              ^^^^^^^^^^^^^^)"
     );
 }
 }  // namespace
