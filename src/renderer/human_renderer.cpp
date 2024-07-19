@@ -2076,6 +2076,8 @@ private:
             Annotation* annotation;
             /// The indegree of this vertex.
             unsigned indegree;
+            Vertex *leader;
+            unsigned rightmost;
             // All successor neighbor vertices of this vertex, each associated with a weight
             // representing the weight of the directed edge from this vertex to the neighbor.
             std::vector<std::pair<Vertex*, unsigned>> neighbors;
@@ -2154,10 +2156,48 @@ private:
                 ++to.indegree;
             }
 
+            Vertex* find_leader(Vertex *self) {
+                if (self->leader == self) {
+                    return self;
+                } else {
+                    return self->leader = find_leader(self->leader);
+                }
+            }
+
+            Vertex* merge_leader(Vertex *self, Vertex *other) {
+                self = find_leader(self);
+                other = find_leader(other);
+                other->leader = self;
+                self->rightmost = std::ranges::max(self->rightmost, other->rightmost);
+            }
+
+            unsigned query_rightmost(Vertex *self) {
+                return find_leader(self)->rightmost;
+            }
+
             /// Build edges in the directed graph based on the three rules mentioned above: If the
             /// first line of annotation A's label should be n lines after the last line of
             /// annotation B's label, then establish a directed edge from B to A with a weight of n.
             void build_graph() {
+                for (Vertex& self : vertices_) {
+                    auto const [self_beg, self_end] =
+                        self.annotation->label_display_range(label_position_);
+                    self.leader = &self;
+                    self.rightmost = self_end;
+                }
+                for (Vertex& self : vertices_) {
+                    auto const [self_beg, self_end] =
+                        self.annotation->label_display_range(label_position_);
+                    for (Vertex& other : vertices_) {
+                        auto const [other_beg, other_end] =
+                            other.annotation->label_display_range(label_position_);
+                        if (self_beg < other_beg && other_beg <= self_end) {
+                            if (find_leader(&self) != find_leader(&other)) {
+                                merge_leader(&self, &other);
+                            }
+                        }
+                    }
+                }
                 for (Vertex& self : vertices_) {
                     auto const [self_beg, self_end] =
                         self.annotation->label_display_range(label_position_);
@@ -2183,7 +2223,7 @@ private:
                         // Rule 3: If b2 < a1 and A is a multiline annotation, then A's horizontal
                         // connection line should be after B's label, and A's label further a line
                         // after its horizontal connection line, so an additional 1 is needed.
-                        if (is_multiline && other_end < self_beg) {
+                        if (is_multiline && query_rightmost(&other) < self_beg) {
                             add_edge(other, self, /*weight=*/1);
                         }
                     }
