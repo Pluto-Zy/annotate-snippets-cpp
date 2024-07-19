@@ -1845,7 +1845,9 @@ private:
                 // primary, the merged annotation should also be primary.
                 old_annotation.is_primary = old_annotation.is_primary || annotation.is_primary;
 
-                merged_annotations.insert(target, std::move(handler));
+                // Note that we cannot use `target` here because the iterator pointing to the
+                // extracted element is invalid.
+                merged_annotations.insert(std::move(handler));
             }
         }
 
