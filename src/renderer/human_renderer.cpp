@@ -2069,19 +2069,114 @@ private:
         // annotation. If the first line of the label of annotation A should be n lines after the
         // last line of the label of annotation B, there exists a directed edge from B to A with a
         // weight of n.
+        //
+        // Note that in some cases we encounter cyclic dependencies, where a cycle appears in the
+        // directed graph we construct. For example:
+        //
+        // 3 | ||||     std::cout << "World";
+        //   | ||||     -  ^  -  ^
+        //   | ||||_____|__|__|__|
+        //   |  |||_____|__|__|  label3
+        //   |   ||_____|__|  label4
+        //   |    |_____|  label5
+        //   |          label6
+        //
+        // According to Rule 1, labels from `label3` to `label6` should be arranged in the order
+        // provided above. However, Rule 3 requires that `label3` should be positioned below
+        // `label6`, creating a contradiction with Rule 1. This contradiction results in a cycle in
+        // the directed graph we constructed, making topological sorting infeasible.
+        //
+        // To address this, we maintain a Disjoint Set Union while constructing the directed graph
+        // and add all overlapping annotations to the same set. When applying Rule 3, we not only
+        // check the overlap between multiline annotations A and B, but also check those annotations
+        // that belong to the same set as B, ensuring that they do not overlap with annotation A.
+        // See https://github.com/Pluto-Zy/annotate-snippets-cpp/pull/3 for more information.
 
         /// Vertices of the directed graph.
         struct Vertex {
+            // The following two members are used to organize annotations into a directed graph.
+
             /// The annotation corresponding to this vertex.
             Annotation* annotation;
-            /// The indegree of this vertex.
-            unsigned indegree;
             // All successor neighbor vertices of this vertex, each associated with a weight
             // representing the weight of the directed edge from this vertex to the neighbor.
             std::vector<std::pair<Vertex*, unsigned>> neighbors;
 
+            // The following two members maintain a disjoint set union for the vertices.
+
+            /// The parent of this node in its set (tree).
+            Vertex* parent;
+            /// The maximum value of the right endpoint of all annotations in the subtree rooted at
+            /// this node.
+            unsigned rightmost;
+
+            /// The indegree of this vertex.
+            unsigned indegree;
+
             Vertex() = default;
-            explicit Vertex(Annotation& annotation) : annotation(&annotation), indegree(0) { }
+            explicit Vertex(Annotation& annotation, HumanRenderer::LabelPosition label_position) :
+                annotation(&annotation),
+                parent(this),
+                rightmost(std::get<1>(annotation.label_display_range(label_position))),
+                indegree(0) { }
+
+            /// Since the member `parent` might point to the object itself, we manually implement
+            /// the move constructor and move assignment operator to correctly handle the situation
+            /// where `parent` points to `*this`. However, this does not handle all cases, such as
+            /// when an object is moved, all objects that have this object as their `parent` should
+            /// update their `parent`, which we cannot do via the constructor. In practice, however,
+            /// we do not move them after creating all nodes (for example, we reserve enough space
+            /// in the `vector` to avoid triggering object moves), thus avoiding this issue.
+            /// Moreover, we do not even need this move constructor, as it will not be called, but
+            /// we still provide it to remind developers to consider the case where `parent` points
+            /// to itself.
+            Vertex(Vertex&& other) noexcept :
+                annotation(other.annotation),
+                neighbors(std::move(other.neighbors)),
+                parent(other.parent == &other ? this : other.parent),
+                rightmost(other.rightmost),
+                indegree(other.indegree) { }
+
+            auto operator=(Vertex&& other) noexcept -> Vertex& {
+                if (this != &other) {
+                    std::tie(annotation, rightmost, indegree) =
+                        std::tie(other.annotation, other.rightmost, other.indegree);
+
+                    neighbors = std::move(other.neighbors);
+                    parent = (other.parent == &other ? this : other.parent);
+                }
+
+                return *this;
+            }
+
+            /// Returns the root of the set to which this vertex belongs.
+            auto root() -> Vertex& {
+                if (parent == this) {
+                    return *this;
+                } else {
+                    // We perform path compression while finding the root.
+                    parent = &parent->root();
+                    return *parent;
+                }
+            }
+
+            /// Merges the sets containing `*this` and `other` and updates the `rightmost` value of
+            /// the root node.
+            void merge(Vertex& other) {
+                Vertex& self_root = root();
+                Vertex& other_root = other.root();
+
+                other_root.parent = &self_root;
+                self_root.rightmost = std::ranges::max(self_root.rightmost, other_root.rightmost);
+            }
+
+            /// Queries the `rightmost` of the set to which this node belongs. Essentially, this
+            /// involves finding the maximum right endpoint of all annotations that overlap with
+            /// this annotation, and recursively, the rightmost endpoint of all annotations that
+            /// overlap with those overlapping annotations.
+            auto query_rightmost() -> unsigned {
+                return root().rightmost;
+            }
         };
 
         class AnnotationGraph {
@@ -2103,7 +2198,7 @@ private:
                         // All annotations that need to be rendered in non-inline form should start
                         // rendering from `first_line_height`.
                         annotation.label_line_position = first_line_height;
-                        vertices_.emplace_back(annotation);
+                        vertices_.emplace_back(annotation, label_position);
                     }
                 }
 
@@ -2158,11 +2253,10 @@ private:
             /// first line of annotation A's label should be n lines after the last line of
             /// annotation B's label, then establish a directed edge from B to A with a weight of n.
             void build_graph() {
+                // We first check Rules 1 and 2, and build the DSU alongside constructing the graph.
                 for (Vertex& self : vertices_) {
                     auto const [self_beg, self_end] =
                         self.annotation->label_display_range(label_position_);
-                    bool const is_multiline = self.annotation->type == Annotation::MultilineHead
-                        || self.annotation->type == Annotation::MultilineTail;
 
                     for (Vertex& other : vertices_) {
                         auto const [other_beg, other_end] =
@@ -2172,6 +2266,16 @@ private:
                         // after B's label.
                         if (self_beg < other_beg && other_beg <= self_end) {
                             add_edge(other, self, /*weight=*/0);
+
+                            // `self` and `other` overlap, so we merge their sets.
+                            //
+                            // Note that we require `self` and `other` to overlap but not contain
+                            // each other, otherwise, the constraints would be too strict. See
+                            // https://github.com/Pluto-Zy/annotate-snippets-cpp/pull/3#issuecomment-2241049973
+                            // for more information.
+                            if (self_end < other_end && &self.root() != &other.root()) {
+                                self.merge(other);
+                            }
                         }
 
                         // Rule 2: If a1 == b1, then the later label should be placed after the
@@ -2179,11 +2283,27 @@ private:
                         if (self_beg == other_beg && self.annotation < other.annotation) {
                             add_edge(self, other, /*weight=*/0);
                         }
+                    }
+                }
 
+                // At this point, we have built part of the directed graph according to Rules 1 and
+                // 2, and constructed the DSU. Now we check Rule 3, and with the help of the DSU,
+                // determine if Rule 3 can be applied.
+                for (Vertex& self : vertices_) {
+                    unsigned const self_beg =
+                        std::get<0>(self.annotation->label_display_range(label_position_));
+                    bool const is_multiline = self.annotation->type == Annotation::MultilineHead
+                        || self.annotation->type == Annotation::MultilineTail;
+
+                    for (Vertex& other : vertices_) {
                         // Rule 3: If b2 < a1 and A is a multiline annotation, then A's horizontal
                         // connection line should be after B's label, and A's label further a line
                         // after its horizontal connection line, so an additional 1 is needed.
-                        if (is_multiline && other_end < self_beg) {
+                        //
+                        // We need to ensure that `self` not only does not overlap with `other`, but
+                        // also does not overlap with any annotations in the same set as `other` to
+                        // prevent the creation of cyclic dependencies.
+                        if (is_multiline && other.query_rightmost() < self_beg) {
                             add_edge(other, self, /*weight=*/1);
                         }
                     }
