@@ -2164,7 +2164,7 @@ private:
                 }
             }
 
-            Vertex* merge_leader(Vertex *self, Vertex *other) {
+            void merge_leader(Vertex *self, Vertex *other) {
                 self = find_leader(self);
                 other = find_leader(other);
                 other->leader = self;
