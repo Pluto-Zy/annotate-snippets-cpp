@@ -2191,7 +2191,7 @@ private:
                     for (Vertex& other : vertices_) {
                         auto const [other_beg, other_end] =
                             other.annotation->label_display_range(label_position_);
-                        if (self_beg < other_beg && other_beg <= self_end) {
+                        if (self_beg < other_beg && other_beg <= self_end && self_end < other_end) {
                             if (find_leader(&self) != find_leader(&other)) {
                                 merge_leader(&self, &other);
                             }
