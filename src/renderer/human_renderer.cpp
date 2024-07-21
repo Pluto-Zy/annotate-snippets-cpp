@@ -1471,8 +1471,10 @@ private:
                 unsigned const other_line_beg = other.annotation_range.front().beg.line;
                 unsigned const other_line_end = other.annotation_range.front().end.line;
 
-                return (self_line_beg <= other_line_beg && other_line_beg < self_line_end)
-                    || (other_line_beg <= self_line_beg && self_line_beg < other_line_end);
+                // Note that for line numbers, the interval (e.g., [`self_line_beg`,
+                // `self_line_end`]) is inclusive on both ends.
+                return (self_line_beg <= other_line_beg && other_line_beg <= self_line_end)
+                    || (other_line_beg <= self_line_beg && self_line_beg <= other_line_end);
             }
         };
 
