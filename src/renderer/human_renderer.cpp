@@ -2044,15 +2044,37 @@ private:
         //     long label2  <-- A
         //
         // 2. For two annotations A and B, with label display ranges [a1, a2) and [b1, b2)
-        // respectively. If a1 == b1, then the label of the later annotation should be after the
-        // label of the earlier annotation. This simply provides a consistent order for annotations
-        // A and B, as seen in the situation below:
+        // respectively. If a1 == b1, then the longer label should be placed below the shorter one.
+        // If the labels are of equal length, the label of the later annotation should be placed
+        // below that of the earlier one. This ensures that these two annotations always have a
+        // fixed order:
         //
         //     func(arg)
         //     ^^^^
         //     |
         //     label1
         //     label2
+        //
+        // The reason for placing the shorter label above is because we expect the output to look
+        // like this:
+        //
+        //     func(args)
+        //     ^     ^
+        //     |     |
+        //     label |
+        // ____|_____|
+        //     |     label2
+        //     label3
+        //
+        // rather than:
+        //
+        //     func(args)
+        //     ^     ^
+        // ____|_____|
+        //     |     label2
+        //     label3
+        //     label
+
         //
         // 3. For multiline annotations A and B, with display ranges [a1, a2) and [b1, b2)
         // respectively. If b2 < a1, then the line of the horizontal connecting line of multiline
@@ -2067,11 +2089,15 @@ private:
         //     text |
         // _________|
         //
+        // 4. The label positions of all multiline annotations cannot be the same, as the horizontal
+        // connection lines of all multiline annotations must be on different lines.
+        //
         // To assign label positions to all annotations and satisfy the above requirements, we
         // construct a directed graph and use topological sorting to allocate levels for each
         // annotation. If the first line of the label of annotation A should be n lines after the
         // last line of the label of annotation B, there exists a directed edge from B to A with a
-        // weight of n.
+        // weight of n. For Rule 4, when assigning label positions to each annotation based on the
+        // topological order, we need to check whether Rule 4 is violated.
         //
         // Note that in some cases we encounter cyclic dependencies, where a cycle appears in the
         // directed graph we construct. For example:
@@ -2180,6 +2206,19 @@ private:
             auto query_rightmost() -> unsigned {
                 return root().rightmost;
             }
+
+            auto is_multiline() const -> bool {
+                return annotation->type == Annotation::MultilineHead
+                    || annotation->type == Annotation::MultilineTail;
+            }
+
+            auto label_line_position() const -> unsigned {
+                return annotation->label_line_position;
+            }
+
+            auto label_line_position() -> unsigned& {
+                return annotation->label_line_position;
+            }
         };
 
         class AnnotationGraph {
@@ -2225,16 +2264,29 @@ private:
 
                     // The end position of current annotation's label.
                     unsigned const cur_label_end_position =
-                        cur_vertex->annotation->label_line_position
-                        + cur_vertex->annotation->label.size();
+                        cur_vertex->label_line_position() + cur_vertex->annotation->label.size();
 
                     for (auto const [neighbor, weight] : cur_vertex->neighbors) {
                         // Determine the line on which the neighbor's label will be based on the
                         // last line of current node's label and the edge's weight.
-                        neighbor->annotation->label_line_position = std::ranges::max(
-                            neighbor->annotation->label_line_position,
+                        neighbor->label_line_position() = std::ranges::max(
+                            neighbor->label_line_position(),
                             cur_label_end_position + weight
                         );
+
+                        if (cur_vertex->is_multiline() && neighbor->is_multiline()) {
+                            // Check if these two multiline annotations have the same label
+                            // position.
+                            if (cur_vertex->label_line_position()
+                                == neighbor->label_line_position()) {
+                                // According to Rule 4, the label positions of two multiline
+                                // annotations cannot be the same. Since we require the label
+                                // position of `neighbor` to be greater than that of `cur_vertex`,
+                                // we increase the label position of `neighbor` to differentiate
+                                // them.
+                                ++neighbor->label_line_position();
+                            }
+                        }
 
                         if (--neighbor->indegree == 0) {
                             vertex_queue.push(neighbor);
@@ -2281,10 +2333,14 @@ private:
                             }
                         }
 
-                        // Rule 2: If a1 == b1, then the later label should be placed after the
-                        // earlier label.
-                        if (self_beg == other_beg && self.annotation < other.annotation) {
-                            add_edge(self, other, /*weight=*/0);
+                        // Rule 2: If a1 == b1, then the shorter label should be placed above the
+                        // longer one. If the lengths of the labels are the same, then the earlier
+                        // annotation should be placed above.
+                        if (self_beg == other_beg) {
+                            if (self_end < other_end
+                                || (self_end == other_end && self.annotation < other.annotation)) {
+                                add_edge(self, other, /*weight=*/0);
+                            }
                         }
                     }
                 }
@@ -2295,8 +2351,6 @@ private:
                 for (Vertex& self : vertices_) {
                     unsigned const self_beg =
                         std::get<0>(self.annotation->label_display_range(label_position_));
-                    bool const is_multiline = self.annotation->type == Annotation::MultilineHead
-                        || self.annotation->type == Annotation::MultilineTail;
 
                     for (Vertex& other : vertices_) {
                         // Rule 3: If b2 < a1 and A is a multiline annotation, then A's horizontal
@@ -2306,7 +2360,7 @@ private:
                         // We need to ensure that `self` not only does not overlap with `other`, but
                         // also does not overlap with any annotations in the same set as `other` to
                         // prevent the creation of cyclic dependencies.
-                        if (is_multiline && other.query_rightmost() < self_beg) {
+                        if (self.is_multiline() && other.query_rightmost() < self_beg) {
                             add_edge(other, self, /*weight=*/1);
                         }
                     }
