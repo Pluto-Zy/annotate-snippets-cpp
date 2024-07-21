@@ -1933,7 +1933,8 @@ private:
 
         for (Annotation& self : annotations) {
             // If a single-line annotation does not contain a label, it is always rendered inline.
-            if (self.type == Annotation::SingleLine && self.label.empty()) {
+            if (self.type != Annotation::MultilineHead && self.type != Annotation::MultilineTail
+                && self.label.empty()) {
                 continue;
             }
 
