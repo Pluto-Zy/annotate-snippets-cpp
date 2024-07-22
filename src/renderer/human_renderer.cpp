@@ -2013,21 +2013,6 @@ private:
             }
         }
 
-        // For annotations rendered in non-inline form, we need to draw vertical lines from the
-        // underline to their labels, as shown:
-        //
-        //     func(args)
-        //     ^^^^
-        //     |            <-- This vertical line is essential for all non-inline annotations.
-        //     label
-        //
-        // We need to ensure there is enough space to draw this vertical line. If the height of the
-        // first line is only 1, we need to add another line.
-        //
-        // Thus, labels for non-inline annotations that follow the inline annotations should start
-        // from `first_line_height`.
-        first_line_height = std::ranges::max(first_line_height, 2u);
-
         // Next, compute label positions for all annotations that cannot be rendered inline. We
         // follow these three principles:
         //
@@ -2233,13 +2218,54 @@ private:
             // clang-format on
             {
                 vertices_.reserve(annotations.size());
+
+                // Determine the starting line for the labels of all annotations that are not drawn
+                // inline. Here, we need to distinguish between single-line and multi-line
+                // annotations.
+                //
+                // For single-line annotations, we need to draw vertical lines from
+                // the underline to their labels, as shown:
+                //
+                //     func(args)
+                //     ^^^^ ^^^^ label
+                //     |            <-- This vertical line is essential for all non-inline
+                //     label            annotations.
+                //
+                // We need to ensure there is enough space to draw this vertical line. If the height
+                // of the first line is only 1, we need to add another line. However, if the height
+                // of the first line is more than 1, there is no need to add another line:
+                //
+                //     func(args)
+                //     ^^^^ ^^^^ line1
+                //     |         line2  <-- No need to add another line
+                //     label
+                //
+                // For multi-line annotations, we always need to add a new line to draw the
+                // horizontal connecting line:
+                //
+                //     func(args)
+                //     ^    ^^^^ label
+                // ____|                <-- A new line must be added
+                //
+                //     func(args)
+                //     ^    ^^^^ line1
+                //     |         line2
+                // ____|                <-- A new line must be added
+                unsigned const singleline_beg = std::ranges::max(first_line_height, 2u);
+                unsigned const multiline_beg = first_line_height + 1;
+
                 for (Annotation& annotation : annotations) {
                     // Add all annotations that cannot be rendered inline (i.e., those with a label
                     // position not equal to 0) to the vertex set.
                     if (annotation.label_line_position != 0) {
                         // All annotations that need to be rendered in non-inline form should start
                         // rendering from `first_line_height`.
-                        annotation.label_line_position = first_line_height;
+                        if (annotation.type == Annotation::MultilineHead
+                            || annotation.type == Annotation::MultilineTail) {
+                            annotation.label_line_position = multiline_beg;
+                        } else {
+                            annotation.label_line_position = singleline_beg;
+                        }
                         vertices_.emplace_back(annotation, label_position);
                     }
                 }
