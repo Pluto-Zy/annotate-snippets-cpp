@@ -429,7 +429,7 @@ struct Annotation {
     ///                     drawn on line 1.
     unsigned label_line_position;
     /// The type of the current annotation.
-    enum : std::uint8_t {
+    enum AnnotationType : std::uint8_t {
         /// Annotation for a single line of code.
         SingleLine,
 
@@ -2029,19 +2029,11 @@ private:
         //     long label2  <-- A
         //
         // 2. For two annotations A and B, with label display ranges [a1, a2) and [b1, b2)
-        // respectively. If a1 == b1, then the longer label should be placed below the shorter one.
-        // If the labels are of equal length, the label of the later annotation should be placed
-        // below that of the earlier one. This ensures that these two annotations always have a
-        // fixed order:
+        // respectively. If a1 == b1, then A's label should be placed above B's label under the
+        // following conditions:
         //
-        //     func(arg)
-        //     ^^^^
-        //     |
-        //     label1
-        //     label2
-        //
-        // The reason for placing the shorter label above is because we expect the output to look
-        // like this:
+        // (1) A's label is shorter than B's label. The reason for placing the shorter label above
+        // is because we expect the output to look like this:
         //
         //     func(args)
         //     ^     ^
@@ -2059,7 +2051,37 @@ private:
         //     |     label2
         //     label3
         //     label
-
+        //
+        // (2) Otherwise, if A is a single-line annotation and B is a multi-line annotation.
+        //
+        // (3) Otherwise, if A is the tail of a multi-line annotation and B is the head of a
+        // multi-line annotation. This can reduce the number of crossing lines to some extent:
+        //
+        // |      func(args)
+        // |__________^
+        //  __________|
+        // |
+        //
+        // (4) Otherwise, if both A and B are single-line annotations and A's underline is shorter
+        // than B's. This condition is not for the aesthetic of the rendering, but to assign a
+        // uniform order to all single-line annotations. Note that if A and B are both single-line
+        // annotations, their underline lengths will not be the same, as annotations with the same
+        // range would have already been merged.
+        //
+        // (5) Otherwise, if both A and B are heads of multi-line annotations and A's depth is less.
+        // This can reduce the number of crossing lines:
+        //
+        //        func(args)
+        //  __________^
+        // | _________|
+        // ||
+        //
+        // (6) Otherwise, if both A and B are tails of multi-line annotations and A's depth is
+        // greater. This can reduce the number of crossing lines:
+        //
+        // ||     func(args)
+        // ||_________^
+        // |__________|
         //
         // 3. For multiline annotations A and B, with display ranges [a1, a2) and [b1, b2)
         // respectively. If b2 < a1, then the line of the horizontal connecting line of multiline
@@ -2359,12 +2381,64 @@ private:
                             }
                         }
 
-                        // Rule 2: If a1 == b1, then the shorter label should be placed above the
-                        // longer one. If the lengths of the labels are the same, then the earlier
-                        // annotation should be placed above.
+                        // Rule 2: If a1 == b1, then A's label should only be placed above B's label
+                        // under a series of conditions.
                         if (self_beg == other_beg) {
-                            if (self_end < other_end
-                                || (self_end == other_end && self.annotation < other.annotation)) {
+                            // Determine whether an edge from `self` to `other` should be added
+                            // according to a series of conditions described in Rule 2 .
+                            bool const should_add_edge = [&] {
+                                if (self_end != other_end) {
+                                    // Condition (1): The shorter label is placed above.
+                                    return self_end < other_end;
+                                } else if (self.annotation->type != other.annotation->type) {
+                                    // Conditions (2) and (3): Order as Single-line annotation,
+                                    // Multiline tail, and Multiline head. We assign an integer
+                                    // value to each type of annotation for sorting purposes.
+                                    auto const compute_type_value =
+                                        [](Annotation::AnnotationType annotation_type) {
+                                            switch (annotation_type) {
+                                            case Annotation::SingleLine:
+                                                return 0;
+                                            case Annotation::MultilineTail:
+                                                return 1;
+                                            case Annotation::MultilineHead:
+                                                return 2;
+                                            default:
+                                                detail::unreachable();
+                                            }
+                                        };
+
+                                    return compute_type_value(self.annotation->type)
+                                        < compute_type_value(other.annotation->type);
+                                } else {
+                                    switch (self.annotation->type) {
+                                    case Annotation::SingleLine: {
+                                        auto const [self_underline_beg, self_underline_end] =
+                                            self.annotation->underline_display_range();
+                                        auto const [other_underline_beg, other_underline_end] =
+                                            other.annotation->underline_display_range();
+                                        // Condition (4): For single-line annotations, the one with
+                                        // the shorter underline is placed above.
+                                        return self_underline_end - self_underline_beg
+                                            < other_underline_end - other_underline_beg;
+                                    }
+                                    case Annotation::MultilineHead:
+                                        // Condition (5): For the heads of multiline annotations,
+                                        // the one with the smaller `depth` is placed above.
+                                        return self.annotation->col_beg.byte
+                                            < other.annotation->col_beg.byte;
+                                    case Annotation::MultilineTail:
+                                        // Condition (6): For the tails of multiline annotations,
+                                        // the one with the greater `depth` is placed above.
+                                        return other.annotation->col_beg.byte
+                                            < self.annotation->col_beg.byte;
+                                    default:
+                                        detail::unreachable();
+                                    };
+                                }
+                            }();
+
+                            if (should_add_edge) {
                                 add_edge(self, other, /*weight=*/0);
                             }
                         }

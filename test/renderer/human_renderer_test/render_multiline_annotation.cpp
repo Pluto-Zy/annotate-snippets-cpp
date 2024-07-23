@@ -607,8 +607,8 @@ TEST(HumanRendererMultilineAnnotationTest, LabelPosition) {
   |
 1 |    auto main() -> int {
   |         ^^^^^ label3
-  |   ______|
-  |  |______|
+  |  _______|
+  | | ______|
 2 | ||     std::cout << "Hello";
 3 | ||     std::cout << "World";
   | ||            ^     ^
@@ -1943,8 +1943,8 @@ TEST(HumanRendererMultilineAnnotationTest, MultilineLabel) {
 1 |    auto main() -> int {
   |         ^^^^^ line1
   |         |     line2
-  |   ______|
-  |  |______|
+  |  _______|
+  | | ______|
 2 | ||     std::cout << "Hello";
 3 | ||     std::cout << "World";
   | ||            ^     ^
