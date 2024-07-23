@@ -461,6 +461,32 @@ TEST(HumanRendererSinglelineAnnotationTest, LabelPosition) {
   |     |
   |     label2)"
     );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(
+                ants::Diag(Level::Warning, ants::StyledStringView::inferred("string literal"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(25, 37, ants::StyledStringView::inferred("label1"))
+                            .with_secondary_annotation(
+                                25,
+                                34,
+                                ants::StyledStringView::inferred("label2")
+                            )
+                            .with_annotation(40, 42)
+                    )
+            )
+            .content(),
+        R"(warning: string literal
+ --> main.cpp:2:5
+  |
+2 |     std::cout << "Hello World" << '\n';
+  |     ---------^^^   ^^
+  |     |
+  |     label2
+  |     label1)"
+    );
 }
 
 TEST(HumanRendererSinglelineAnnotationTest, LineNumAlignment) {

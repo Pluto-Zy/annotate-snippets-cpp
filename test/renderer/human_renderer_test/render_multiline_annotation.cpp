@@ -625,6 +625,170 @@ TEST(HumanRendererMultilineAnnotationTest, LabelPosition) {
                         ants::AnnotatedSource(source, "main.cpp")
                             .with_annotation(
                                 ants::SourceLocation { 0, 5 },
+                                ants::SourceLocation { 2, 12 },
+                                ants::StyledStringView::inferred("label1")
+                            )
+                            .with_annotation(
+                                ants::SourceLocation { 0, 8 },
+                                ants::SourceLocation { 2, 12 },
+                                ants::StyledStringView::inferred("label2")
+                            )
+                            .with_annotation(
+                                ants::SourceLocation { 2, 15 },
+                                ants::SourceLocation { 2, 18 },
+                                ants::StyledStringView::inferred("label3")
+                            )
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:6
+  |
+1 |    auto main() -> int {
+  |  _______^  ^
+  | | _________|
+2 | ||     std::cout << "Hello";
+3 | ||     std::cout << "World";
+  | ||            ^   ^^^ label3
+  | ||____________|
+  | |_____________label2
+  |               label1)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(
+                                ants::SourceLocation { 0, 5 },
+                                ants::SourceLocation { 2, 12 },
+                                ants::StyledStringView::inferred("label")
+                            )
+                            .with_annotation(
+                                ants::SourceLocation { 0, 8 },
+                                ants::SourceLocation { 2, 12 },
+                                ants::StyledStringView::inferred("label2")
+                            )
+                            .with_annotation(
+                                ants::SourceLocation { 2, 15 },
+                                ants::SourceLocation { 2, 18 },
+                                ants::StyledStringView::inferred("label3")
+                            )
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:6
+  |
+1 |    auto main() -> int {
+  |  _______^  ^
+  | | _________|
+2 | ||     std::cout << "Hello";
+3 | ||     std::cout << "World";
+  | ||            ^   ^^^ label3
+  | ||____________|
+  |  |____________label
+  |               label2)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(
+                                ants::SourceLocation { 0, 5 },
+                                ants::SourceLocation { 2, 12 },
+                                ants::StyledStringView::inferred("label1")
+                            )
+                            .with_annotation(
+                                ants::SourceLocation { 0, 8 },
+                                ants::SourceLocation { 2, 12 },
+                                ants::StyledStringView::inferred("label2")
+                            )
+                            .with_annotation(
+                                ants::SourceLocation { 2, 15 },
+                                ants::SourceLocation { 2, 18 },
+                                ants::StyledStringView::inferred("label3")
+                            )
+                            .with_annotation(
+                                ants::SourceLocation { 2, 11 },
+                                ants::SourceLocation { 2, 12 },
+                                ants::StyledStringView::inferred("label4")
+                            )
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:6
+  |
+1 |    auto main() -> int {
+  |  _______^  ^
+  | | _________|
+2 | ||     std::cout << "Hello";
+3 | ||     std::cout << "World";
+  | ||            ^   ^^^ label3
+  | ||            |
+  | ||____________label4
+  | |_____________label2
+  |               label1)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(
+                                ants::SourceLocation { 0, 5 },
+                                ants::SourceLocation { 2, 12 },
+                                ants::StyledStringView::inferred("label")
+                            )
+                            .with_annotation(
+                                ants::SourceLocation { 0, 8 },
+                                ants::SourceLocation { 2, 12 },
+                                ants::StyledStringView::inferred("label2")
+                            )
+                            .with_annotation(
+                                ants::SourceLocation { 2, 15 },
+                                ants::SourceLocation { 2, 18 },
+                                ants::StyledStringView::inferred("label3")
+                            )
+                            .with_annotation(
+                                ants::SourceLocation { 2, 11 },
+                                ants::SourceLocation { 2, 12 },
+                                ants::StyledStringView::inferred("label4")
+                            )
+                    )
+            )
+            .content(),
+        R"(error: message
+ --> main.cpp:1:6
+  |
+1 |    auto main() -> int {
+  |  _______^  ^
+  | | _________|
+2 | ||     std::cout << "Hello";
+3 | ||     std::cout << "World";
+  | ||            ^   ^^^ label3
+  | ||____________|
+  |  |            label
+  |  |____________label4
+  |               label2)"
+    );
+
+    EXPECT_EQ(
+        renderer
+            .render_diag(  //
+                ants::Diag(Level::Error, ants::StyledStringView::inferred("message"))
+                    .with_source(  //
+                        ants::AnnotatedSource(source, "main.cpp")
+                            .with_annotation(
+                                ants::SourceLocation { 0, 5 },
                                 ants::SourceLocation { 2, 18 },
                                 ants::StyledStringView::inferred("label1")
                             )
