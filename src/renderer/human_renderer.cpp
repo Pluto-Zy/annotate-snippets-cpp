@@ -144,14 +144,13 @@ void HumanRenderer::render_title_message(
         // Append a sufficient number of spaces to align the "=" with the line number separator.
         render_target.append_spaces(max_line_num_len + 1);
         // Render "= ".
-        render_target.append("= ", ants::Style::LineNumber);
+        render_target.append("= ", Style::LineNumber);
         // We have already rendered a number of spaces equal to `max_line_num_len + 1` and a width
         // of 2 for "= ".
         indentation += max_line_num_len + 3;
     }
 
-    ants::Style const title_style =
-        is_secondary ? ants::Style::SecondaryTitle : ants::Style::PrimaryTitle;
+    Style const title_style = is_secondary ? Style::SecondaryTitle : Style::PrimaryTitle;
 
     // Render the diagnostic level title (such as "error"). The colon following "error" is rendered
     // later because the error code may be inserted between "error" and ": ".
@@ -176,7 +175,7 @@ void HumanRenderer::render_title_message(
         render_target,
         message,
         indentation,
-        is_secondary ? ants::Style::SecondaryMessage : ants::Style::PrimaryMessage
+        is_secondary ? Style::SecondaryMessage : Style::PrimaryMessage
     );
 }
 
@@ -195,20 +194,20 @@ auto HumanRenderer::render_file_line_col_short_message(
         }
 
         // Render the file name.
-        render_target.append(source.origin(), ants::Style::OriginAndLocation);
-        render_target.append(":", ants::Style::OriginAndLocation);
+        render_target.append(source.origin(), Style::OriginAndLocation);
+        render_target.append(":", Style::OriginAndLocation);
 
         SourceLocation const loc = source.primary_spans().front().beg;
         std::string const line = std::to_string(loc.line + source.first_line_number());
         std::string const col = std::to_string(loc.col + 1);
 
         // Render the line number and column number.
-        render_target.append(line, ants::Style::OriginAndLocation);
-        render_target.append(":", ants::Style::OriginAndLocation);
-        render_target.append(col, ants::Style::OriginAndLocation);
+        render_target.append(line, Style::OriginAndLocation);
+        render_target.append(":", Style::OriginAndLocation);
+        render_target.append(col, Style::OriginAndLocation);
 
         // When rendering a short message, we need to additionally render a ": " at the end.
-        render_target.append(": ", ants::Style::OriginAndLocation);
+        render_target.append(": ", Style::OriginAndLocation);
 
         // Compute the width of the part already rendered. Since we've also drawn one ": " and two
         // ':', we need to add 4.
@@ -223,7 +222,7 @@ namespace {
 /// Renders the line number and its separator portion without the line number itself.
 void render_line_number(StyledString& render_target, unsigned max_line_num_len) {
     render_target.append_spaces(max_line_num_len + 1);
-    render_target.append("|", ants::Style::LineNumber);
+    render_target.append("|", Style::LineNumber);
 }
 
 /// Renders line numbers according to the specified alignment, along with the vertical bar separator
@@ -238,14 +237,14 @@ void render_line_number(
 
     switch (line_num_alignment) {
     case HumanRenderer::AlignLeft:
-        render_target.append(line_num_str, ants::Style::LineNumber);
+        render_target.append(line_num_str, Style::LineNumber);
         // Adds sufficient spaces to align the separator.
         render_target.append_spaces(max_line_num_len + 1 - line_num_str.size());
         break;
     case HumanRenderer::AlignRight:
         // Adds sufficient spaces to ensure the line number text is right-aligned.
         render_target.append_spaces(max_line_num_len - line_num_str.size());
-        render_target.append(line_num_str, ants::Style::LineNumber);
+        render_target.append(line_num_str, Style::LineNumber);
         // Adds a single space between the line number and the separator.
         render_target.append_spaces(1);
         break;
@@ -253,7 +252,7 @@ void render_line_number(
         detail::unreachable();
     }
 
-    render_target.append("|", ants::Style::LineNumber);
+    render_target.append("|", Style::LineNumber);
 }
 
 /// When `short_message` is `false`, this is used to render the file name, line number, and column
@@ -269,30 +268,30 @@ void render_file_line_col(
     // with "-->", otherwise start with ":::".
     if (is_first_source) {
         render_target.append_spaces(max_line_num_len);
-        render_target.append("--> ", ants::Style::LineNumber);
+        render_target.append("--> ", Style::LineNumber);
     } else {
         // Since the current source is not the first, we first add an empty line.
         render_line_number(render_target, max_line_num_len);
         render_target.append_newline();
 
         render_target.append_spaces(max_line_num_len);
-        render_target.append("::: ", ants::Style::LineNumber);
+        render_target.append("::: ", Style::LineNumber);
     }
 
     // Render the file name.
-    render_target.append(source.origin(), ants::Style::OriginAndLocation);
+    render_target.append(source.origin(), Style::OriginAndLocation);
 
     if (!source.primary_spans().empty()) {
-        render_target.append(":", ants::Style::OriginAndLocation);
+        render_target.append(":", Style::OriginAndLocation);
 
         SourceLocation const loc = source.primary_spans().front().beg;
         std::string const line = std::to_string(loc.line + source.first_line_number());
         std::string const col = std::to_string(loc.col + 1);
 
         // Render the line number and column number.
-        render_target.append(line, ants::Style::OriginAndLocation);
-        render_target.append(":", ants::Style::OriginAndLocation);
-        render_target.append(col, ants::Style::OriginAndLocation);
+        render_target.append(line, Style::OriginAndLocation);
+        render_target.append(":", Style::OriginAndLocation);
+        render_target.append(col, Style::OriginAndLocation);
     }
 }
 
@@ -1121,8 +1120,7 @@ private:
 
                 vertical_line_content[depth] = '|';
                 vertical_line_content.set_style(
-                    annotation.is_primary ? ants::Style::PrimaryUnderline
-                                          : ants::Style::SecondaryUnderline,
+                    annotation.is_primary ? Style::PrimaryUnderline : Style::SecondaryUnderline,
                     depth,
                     depth + 1
                 );
@@ -1133,7 +1131,7 @@ private:
 
         if (omitted) {
             // If the code line is omitted, render it as "...".
-            render_target.append("...", ants::Style::LineNumber);
+            render_target.append("...", Style::LineNumber);
 
             if (!vertical_line_content.empty()) {
                 // Next, we need to add spaces to ensure that `vertical_line_content` is inserted in
@@ -1176,7 +1174,7 @@ private:
             render_target.append_spaces(1);
             render_target.append(  //
                 normalize_source(source_line, display_tab_width),
-                ants::Style::SourceCode
+                Style::SourceCode
             );
         }
 

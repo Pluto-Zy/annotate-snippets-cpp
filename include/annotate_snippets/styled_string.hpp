@@ -187,7 +187,7 @@ public:
     void append_spaces(std::size_t count) {
         if (count != 0) {
             content_.append(count, ' ');
-            append_styled_part_impl(ants::Style::Default);
+            append_styled_part_impl(Style::Default);
         }
     }
 
