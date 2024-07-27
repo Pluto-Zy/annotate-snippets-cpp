@@ -5,10 +5,11 @@
 #include "annotate_snippets/style.hpp"
 #include "annotate_snippets/styled_string_view.hpp"
 
-#include <algorithm>
+#include <concepts>
 #include <cstddef>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace ants {
@@ -18,6 +19,23 @@ class StyledString : public detail::StyledStringImpl {
 public:
     /// Constructs an empty `StyledString`.
     StyledString() = default;
+
+    /// Constructs a `StyledString` whose content is `content` and the style of the whole string
+    /// will be inferred from the context in which the string is used (i.e. the `Style::Auto`
+    /// style).
+    StyledString(std::string content) :
+        // Here we must explicitly cast `Style::Auto` to the `Style` type, otherwise overload
+        // resolution would select `StyledString(Args&&...)` instead of `StyledString(std::string,
+        // Style)`. This is because `Style::Auto` can be implicitly converted to integer while
+        // `Style` cannot.
+        StyledString(std::move(content), static_cast<Style>(Style::Auto)) { }
+
+    /// Constructs a `StyledString` where its content is built from `args...`, as if constructed
+    /// with `std::string(std::forward<Args>(args)...)`, and the style of the whole string will be
+    /// inferred from the context in which the string is used (i.e. the `Style::Auto` style).
+    template <class... Args>
+        requires std::constructible_from<std::string, Args...>
+    StyledString(Args&&... args) : StyledString(std::string(std::forward<Args>(args)...)) { }
 
     /// Constructs a `StyledString` whose content is `content` and the style of the whole string is
     /// `style`.
