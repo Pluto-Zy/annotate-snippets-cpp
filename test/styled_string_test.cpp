@@ -561,27 +561,26 @@ TEST(StyledStringTest, SetStyledContent) {
 
 TEST(StyledStringTest, Constructor) {
     {
-        auto const lines = ants::StyledString::inferred("abc").styled_line_parts();
+        auto const str = ants::StyledString::inferred("abc");
         LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
-        EXPECT_EQ(lines, expected);
+        EXPECT_EQ(str.styled_line_parts(), expected);
     }
 
     {
-        auto const lines = ants::StyledString::plain("abc").styled_line_parts();
+        auto const str = ants::StyledString::plain("abc");
         LineParts const expected { { { .content = "abc", .style = ants::Style::Default } } };
-        EXPECT_EQ(lines, expected);
+        EXPECT_EQ(str.styled_line_parts(), expected);
     }
 
     {
-        auto const lines =
-            ants::StyledString::styled("abc", ants::Style::Highlight).styled_line_parts();
+        auto const str = ants::StyledString::styled("abc", ants::Style::Highlight);
         LineParts const expected { { { .content = "abc", .style = ants::Style::Highlight } } };
-        EXPECT_EQ(lines, expected);
+        EXPECT_EQ(str.styled_line_parts(), expected);
     }
 
     {
-        auto const lines =
-            ants::StyledString::styled("abc", ants::Style::custom(1)).styled_line_parts();
+        auto const str = ants::StyledString::styled("abc", ants::Style::custom(1));
+        auto const lines = str.styled_line_parts();
         LineParts const expected { { { .content = "abc", .style = ants::Style::custom(1) } } };
         EXPECT_EQ(lines, expected);
         EXPECT_NE(lines.front().front().style, ants::Style::Default);
