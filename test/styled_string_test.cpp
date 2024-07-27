@@ -558,4 +558,51 @@ TEST(StyledStringTest, SetStyledContent) {
         // clang-format on
     }
 }
+
+TEST(StyledStringTest, Constructor) {
+    {
+        auto const lines = ants::StyledString::inferred("abc").styled_line_parts();
+        LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
+        EXPECT_EQ(lines, expected);
+    }
+
+    {
+        auto const lines = ants::StyledString::plain("abc").styled_line_parts();
+        LineParts const expected { { { .content = "abc", .style = ants::Style::Default } } };
+        EXPECT_EQ(lines, expected);
+    }
+
+    {
+        auto const lines =
+            ants::StyledString::styled("abc", ants::Style::Highlight).styled_line_parts();
+        LineParts const expected { { { .content = "abc", .style = ants::Style::Highlight } } };
+        EXPECT_EQ(lines, expected);
+    }
+
+    {
+        auto const lines =
+            ants::StyledString::styled("abc", ants::Style::custom(1)).styled_line_parts();
+        LineParts const expected { { { .content = "abc", .style = ants::Style::custom(1) } } };
+        EXPECT_EQ(lines, expected);
+        EXPECT_NE(lines.front().front().style, ants::Style::Default);
+    }
+
+    {
+        ants::StyledString const str = "abc";
+        LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
+        EXPECT_EQ(str.styled_line_parts(), expected);
+    }
+
+    {
+        ants::StyledString const str("abc");
+        LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
+        EXPECT_EQ(str.styled_line_parts(), expected);
+    }
+
+    {
+        ants::StyledString const str(std::string_view("abc"));
+        LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
+        EXPECT_EQ(str.styled_line_parts(), expected);
+    }
+}
 }  // namespace

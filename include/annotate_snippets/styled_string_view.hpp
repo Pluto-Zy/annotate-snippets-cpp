@@ -4,8 +4,10 @@
 #include "annotate_snippets/detail/styled_string_impl.hpp"
 #include "style.hpp"
 
+#include <concepts>
 #include <cstddef>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace ants {
@@ -19,6 +21,19 @@ class StyledStringView : public detail::StyledStringImpl {
 public:
     /// Constructs an empty `StyledStringView`.
     StyledStringView() = default;
+
+    /// Constructs a `StyledStringView` whose content is `content` and the style of the whole string
+    /// will be inferred from the context in which the string is used (i.e. the `Style::Auto`
+    /// style).
+    StyledStringView(std::string_view content) : StyledStringView(content, Style::Auto) { }
+
+    /// Constructs a `StyledStringView` where its content is built from `args...`, as if constructed
+    /// with `std::string_view(std::forward<Args>(args)...)`, and the style of the whole string will
+    /// be inferred from the context in which the string is used (i.e. the `Style::Auto` style).
+    template <class... Args>
+        requires std::constructible_from<std::string_view, Args...>
+    StyledStringView(Args&&... args) :
+        StyledStringView(std::string_view(std::forward<Args>(args)...)) { }
 
     /// Constructs a `StyledStringView` whose content is `content` and the style of the whole string
     /// is `style`.

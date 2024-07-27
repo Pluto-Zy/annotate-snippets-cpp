@@ -579,6 +579,24 @@ TEST(StyledStringViewTest, Constructor) {
         EXPECT_EQ(lines, expected);
         EXPECT_NE(lines.front().front().style, ants::Style::Default);
     }
+
+    {
+        ants::StyledStringView const str = "abc";
+        LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
+        EXPECT_EQ(str.styled_line_parts(), expected);
+    }
+
+    {
+        ants::StyledStringView const str("abc");
+        LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
+        EXPECT_EQ(str.styled_line_parts(), expected);
+    }
+
+    {
+        ants::StyledStringView const str(std::string_view("abc"));
+        LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
+        EXPECT_EQ(str.styled_line_parts(), expected);
+    }
 }
 
 TEST(StyledStringViewTest, Setter) {
