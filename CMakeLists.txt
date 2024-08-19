@@ -34,6 +34,8 @@ option(INSTALL_ANNOTATE_SNIPPETS "Enable installation of the annotate-snippets p
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include(AddRang)
+
 add_library(annotate_snippets
     src/annotated_source.cpp
     src/detail/styled_string_impl.cpp
@@ -52,6 +54,8 @@ target_compile_options(annotate_snippets
         $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
 )
 
+target_link_libraries(annotate_snippets PRIVATE rang::rang)
+
 add_library(ants::annotate_snippets ALIAS annotate_snippets)
 
 if (ANNOTATE_SNIPPETS_ENABLE_TESTING)
@@ -63,7 +67,7 @@ if (INSTALL_ANNOTATE_SNIPPETS)
     set(ANNOTATE_SNIPPETS_CMAKE_INSTALL_PATH "${CMAKE_INSTALL_LIBDIR}/cmake/annotate-snippets")
 
     # Installation setup
-    install(TARGETS annotate_snippets
+    install(TARGETS annotate_snippets rang
         EXPORT annotate-snippets-targets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

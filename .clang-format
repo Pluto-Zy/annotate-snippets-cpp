@@ -38,12 +38,14 @@ EmptyLineAfterAccessModifier: Never
 EmptyLineBeforeAccessModifier: Leave
 FixNamespaceComments: true
 IncludeCategories:
-  - Regex:           '^".*\.hpp"' # User Headers
-    Priority:        1
-  - Regex:           '^((<|")(gtest|gmock)/)' # GoogleTest Headers
-    Priority:        2
-  - Regex:           '^<[^>]*>$' # STL Headers
-    Priority:        3
+  - Regex:    '<rang\.hpp>|"rang\.hpp"' # rang.hpp
+    Priority: 2
+  - Regex:    '^((<|")(gtest|gmock)/)' # GoogleTest Headers
+    Priority: 3
+  - Regex:    '^".*\.hpp"' # User Headers
+    Priority: 1
+  - Regex:    '^<[^>]*>$' # STL Headers
+    Priority: 4
 IncludeBlocks: Regroup
 IndentAccessModifiers: false
 IndentCaseBlocks: false
