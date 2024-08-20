@@ -21,6 +21,8 @@ inline auto display_string(Level level) -> char const* {
         return "note";
     case Level::Help:
         return "help";
+    default:
+        return "";
     }
 }
 
