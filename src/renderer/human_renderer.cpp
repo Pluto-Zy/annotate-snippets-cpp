@@ -155,7 +155,7 @@ void HumanRenderer::render_title_message(
     // Render the diagnostic level title (such as "error"). The colon following "error" is rendered
     // later because the error code may be inserted between "error" and ": ".
     render_target.append(level_title, title_style);
-    indentation += detail::display_width(level_title);
+    indentation += static_cast<unsigned>(detail::display_width(level_title));
 
     // If there is an error code, render it.
     if (!err_code.empty()) {
@@ -164,7 +164,7 @@ void HumanRenderer::render_title_message(
         rendered_err_code.push_back(']');
 
         render_target.append(rendered_err_code, title_style);
-        indentation += detail::display_width(rendered_err_code);
+        indentation += static_cast<unsigned>(detail::display_width(rendered_err_code));
     }
 
     render_target.append(": ", title_style);
@@ -211,7 +211,9 @@ auto HumanRenderer::render_file_line_col_short_message(
 
         // Compute the width of the part already rendered. Since we've also drawn one ": " and two
         // ':', we need to add 4.
-        final_width = detail::display_width(source.origin()) + line.size() + col.size() + 4;
+        final_width = static_cast<unsigned>(
+            detail::display_width(source.origin()) + line.size() + col.size() + 4
+        );
         ++idx;
     }
 
@@ -605,8 +607,8 @@ private:
         // source code associated with this annotation.
         col_beg { .byte = col_beg, .display = col_beg },
         col_end { .byte = col_end, .display = col_end },
-        type(type),
         label_line_position(0),
+        type(type),
         is_primary(is_primary) { }
 
     /// Returns the display width of the label `label`. It is calculated as the maximum width of all
@@ -619,7 +621,7 @@ private:
                 [](std::vector<StyledStringViewPart> const& line) {
                     unsigned width = 0;
                     for (auto const& [content, style] : line) {
-                        width += detail::display_width(content);
+                        width += static_cast<unsigned>(detail::display_width(content));
                         // Suppresses warnings for unused variables.
                         (void) style;
                     }
@@ -755,14 +757,14 @@ struct AnnotatedLine {
         // render target.
 
         // Render the source code line.
-        StyledString const source_line = render_source_line(
+        StyledString const source_code_line = render_source_line(
             max_line_num_len,
             line_num,
             depth_num,
             human_renderer.line_num_alignment,
             human_renderer.display_tab_width
         );
-        render_target.append(source_line.styled_line_parts().front());
+        render_target.append(source_code_line.styled_line_parts().front());
 
         // Render the annotations.
         for (StyledString const& line : annotation_lines) {
@@ -861,12 +863,8 @@ private:
                     std::get<0>(annotation.label_display_range(label_position))
                     + source_code_indentation;
 
-                // clang-format off
-                for (StyledString& line : annotation_lines
-                        | std::views::take(annotation.label_line_position)
-                        | std::views::drop(1))
-                // clang-format on
-                {
+                for (StyledString& line :
+                     annotation_lines.subspan(1, annotation.label_line_position - 1)) {
                     line.set_styled_content(connector_position, "|", connector_style);
                 }
             }
@@ -941,7 +939,7 @@ private:
 
                 // Render the label line by line.
                 for (unsigned const line_idx :
-                     std::views::iota(std::size_t(0), annotation.label.size())) {
+                     std::views::iota(0u, static_cast<unsigned>(annotation.label.size()))) {
                     // The target for the `line_idx` line of the label.
                     StyledString& target_line =
                         annotation_lines[annotation.label_line_position + line_idx];
@@ -1460,6 +1458,9 @@ private:
             /// indicates no depth has been assigned yet.
             unsigned depth = 0;
 
+            Vertex() = default;
+            explicit Vertex(std::span<MultilineAnnotation> range) : annotation_range(range) { }
+
             /// Determines whether the intervals represented by two `Vertex` overlap.
             auto overlap(Vertex const& other) const -> bool {
                 // We assume that the `annotation_range` in both vertices is non-empty, and that all
@@ -1493,9 +1494,7 @@ private:
             );
 
             // Bind the range formed by `iter` and `end_iter` to a vertex.
-            // clang-format off
-            interval_graph.push_back(Vertex { .annotation_range { iter, end_iter } });
-            // clang-format on
+            interval_graph.emplace_back(std::span(iter, end_iter));
 
             iter = end_iter;
         }
@@ -1530,7 +1529,8 @@ private:
             // the first element of `depth_bucket` because we need to ignore all vertices that have
             // not been assigned a depth.
             auto const first_unused = std::ranges::find(depth_bucket | std::views::drop(1), 0);
-            vertex.depth = std::ranges::distance(depth_bucket.begin(), first_unused);
+            vertex.depth =
+                static_cast<unsigned>(std::ranges::distance(depth_bucket.begin(), first_unused));
         }
 
         // Convert `Vertex`'s `depth` to the depths assigned to each multi-line annotation.
@@ -1699,22 +1699,24 @@ private:
 
             // We also need to include the length of the source line in `col_display` so that we can
             // calculate the display width of the source line simultaneously.
-            col_display.emplace(annotated_line.source_line.size(), 0);
+            col_display.emplace(static_cast<unsigned>(annotated_line.source_line.size()), 0u);
 
             for (unsigned display_width = 0, chunk_begin = 0; auto& [byte, display] : col_display) {
                 std::string const normalized_source_chunk = normalize_source(
                     annotated_line.source_line.substr(chunk_begin, byte - chunk_begin),
                     display_tab_width
                 );
-                display_width += detail::display_width(normalized_source_chunk);
+                display_width +=
+                    static_cast<unsigned>(detail::display_width(normalized_source_chunk));
 
                 if (byte > annotated_line.source_line.size()) {
                     // If `byte` exceeds the length of `annotated_line.source_line`, the user is
                     // attempting to annotate characters that do not exist in this line. We allow
                     // this, as the user might be annotating the end of this line to indicate
                     // something is missing. We treat these non-existent characters as spaces.
-                    display_width += byte - annotated_line.source_line.size();
-                    chunk_begin = annotated_line.source_line.size();
+                    display_width +=
+                        byte - static_cast<unsigned>(annotated_line.source_line.size());
+                    chunk_begin = static_cast<unsigned>(annotated_line.source_line.size());
                 } else {
                     chunk_begin = byte;
                 }
@@ -1745,7 +1747,7 @@ private:
 
             // Calculate the display width of the source line.
             annotated_line.line_display_width =
-                col_display.find(annotated_line.source_line.size())->second;
+                col_display.find(static_cast<unsigned>(annotated_line.source_line.size()))->second;
         }
     }
 
@@ -1985,8 +1987,8 @@ private:
                 // Note that, although not explicitly stated, we still consider cases where
                 // `other`'s underline range might be empty: if `other_beg` and `other_end` are
                 // equal, this `if` statement will not be executed, thus not affecting the result.
-                if (other_beg < underline_beg && underline_beg <= other_end
-                    || other_beg <= underline_end && underline_end < other_end) {
+                if ((other_beg < underline_beg && underline_beg <= other_end)
+                    || (other_beg <= underline_end && underline_end < other_end)) {
                     self.label_line_position = 1;
                     break;
                 }
@@ -2309,10 +2311,10 @@ private:
                     vertex_queue.pop();
 
                     // The end position of current annotation's label.
-                    unsigned const cur_label_end_position =
-                        cur_vertex->label_line_position() + cur_vertex->annotation->label.size();
+                    unsigned const cur_label_end_position = cur_vertex->label_line_position()
+                        + static_cast<unsigned>(cur_vertex->annotation->label.size());
 
-                    for (auto const [neighbor, weight] : cur_vertex->neighbors) {
+                    for (auto const& [neighbor, weight] : cur_vertex->neighbors) {
                         // Determine the line on which the neighbor's label will be based on the
                         // last line of current node's label and the edge's weight.
                         neighbor->label_line_position() = std::ranges::max(

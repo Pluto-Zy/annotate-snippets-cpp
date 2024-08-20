@@ -5,8 +5,10 @@
 #include "annotate_snippets/style.hpp"
 #include "annotate_snippets/styled_string_view.hpp"
 
+#include <algorithm>
 #include <concepts>
 #include <cstddef>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -208,7 +210,15 @@ public:
             append_spaces(position + content.size() - content_.size());
         }
 
-        content_.replace(position, content.size(), content);
+        // We need to replace a substring starting at `position` with a length equal to
+        // `content.size()`. We could use `replace()` for this:
+        //
+        //      content_.replace(position, content.size(), content);
+        //
+        // However, due to a GCC bug (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100366), g++
+        // incorrectly assumes that this code causes overlapping `__builtin_memcpy` calls.
+        // Therefore, we use `std::ranges::copy()` instead.
+        std::ranges::copy(content, std::ranges::next(content_.begin(), position));
         set_style(style, position, position + content.size());
     }
 

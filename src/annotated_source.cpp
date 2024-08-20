@@ -36,7 +36,7 @@ auto compute_line_offset(
                 // Special case: If `source` ends with '\n', then the actual last line is empty,
                 // which causes the last line and the line following the last line to have the same
                 // starting position. In this case, we do not add the hypothetical end line.
-                std::size_t const line = start_offset == source.size() ? cur_line : cur_line + 1;
+                unsigned const line = start_offset == source.size() ? cur_line : cur_line + 1;
                 line_offset_cache[line] = source.size();
                 return source.size();
             }
@@ -149,8 +149,9 @@ auto byte_offset_to_line(
     // last line. This function does not modify the cache.
     auto const find_forward = [&](unsigned start_line, std::size_t start_offset) {
         // Counts the number of newline characters between [start_offset, byte_offset).
-        unsigned lines =
-            std::ranges::count(source.substr(start_offset, byte_offset - start_offset), '\n');
+        auto lines = static_cast<unsigned>(
+            std::ranges::count(source.substr(start_offset, byte_offset - start_offset), '\n')
+        );
         // If `byte_offset` exceeds the valid range of `source` but `start_offset` is still within
         // the valid range, we need to consider the hypothetical line where `byte_offset` is
         // located. We only add this hypothetical line if `source` does not end with '\n'.
@@ -178,8 +179,9 @@ auto byte_offset_to_line(
         --start_offset;
 
         // Counts the number of newline characters between [byte_offset, start_offset).
-        unsigned const lines =
-            std::ranges::count(source.substr(byte_offset, start_offset - byte_offset), '\n');
+        auto const lines = static_cast<unsigned>(
+            std::ranges::count(source.substr(byte_offset, start_offset - byte_offset), '\n')
+        );
 
         // Since we skipped a line, we need to decrement by an additional line.
         std::pair res(start_line - lines - 1, find_line_start());
