@@ -1,0 +1,58 @@
+name: cpp-linter
+
+on:
+  push:
+    paths: ['**.c', '**.cpp', '**.h', '**.hpp', '**.cxx', '**.hxx', '**.cc', '**.hh', '**CMakeLists.txt', '**.cmake', '.clang-*', '.github/workflows/cpp-linter.yml']
+  # For pull requests, we always run this check.
+  pull_request:
+
+jobs:
+  cpp-linter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget lsb-release software-properties-common
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 18
+          echo "CC=clang-18" >> $GITHUB_ENV
+          echo "CXX=clang++-18" >> $GITHUB_ENV
+
+      - name: Create compilation database
+        run: |
+          cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
+                -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+                -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON \
+                -DINSTALL_ANNOTATE_SNIPPETS=OFF
+
+      - uses: cpp-linter/cpp-linter-action@v2
+        id: linter
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Use .clang-format config file
+          style: 'file'
+          # Use .clang-tidy config file
+          tidy-checks: ''
+          # only 'update' a single comment in a pull request's thread.
+          thread-comments: ${{ github.event_name == 'pull_request' && 'update' }}
+          database: 'build'
+          version: 18
+          ignore: '.github|build'
+          files-changed-only: false
+          # Append checking results as part of workflow's job summary.
+          step-summary: true
+          # We did not specify the include path for header files (in our CMakeLists.txt, we only
+          # specified the include path for cpp files), which causes clang-tidy to fail to find the
+          # files included with `#include` when checking header files. Therefore, we explicitly
+          # provide the include path for `clang-tidy`.
+          extra-args: '-I${{github.workspace}}/include'
+
+      - name: Fail fast?!
+        if: steps.linter.outputs.checks-failed > 0
+        run: exit 1
