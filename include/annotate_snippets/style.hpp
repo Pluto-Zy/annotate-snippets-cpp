@@ -78,7 +78,7 @@ public:
     constexpr Style(PredefinedStyle style) :
         style_(
             // Predefined styles are always stored as non-positive numbers,
-            -static_cast<std::int8_t>(style)
+            static_cast<std::int8_t>(-style)
         ) { }
     constexpr explicit Style(std::int8_t style) : style_(style) { }
 

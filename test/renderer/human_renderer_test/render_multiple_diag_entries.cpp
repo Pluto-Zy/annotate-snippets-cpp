@@ -13,7 +13,7 @@ TEST(HumanRendererMultipleDiagTest, MultipleSources) {
     std::string_view const source1 = "auto main() -> int {}";
     std::string_view const source2 = "auto add(int v1, int v2) -> int { return v1 + v2; }";
 
-    ants::HumanRenderer renderer;
+    ants::HumanRenderer const renderer;
 
     EXPECT_EQ(
         renderer
@@ -85,7 +85,7 @@ TEST(HumanRendererMultipleDiagTest, MultipleEntries) {
     std::string_view const source1 = "auto main() -> int {}";
     std::string_view const source2 = "auto add(int v1, int v2) -> int { return v1 + v2; }";
 
-    ants::HumanRenderer renderer;
+    ants::HumanRenderer const renderer;
 
     EXPECT_EQ(
         renderer

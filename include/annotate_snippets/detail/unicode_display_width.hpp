@@ -33,28 +33,29 @@ constexpr auto utf8_decode(const char* s, uint32_t* c, int* e) -> const char* {
     constexpr const int shiftc[] = { 0, 18, 12, 6, 0 };
     constexpr const int shifte[] = { 0, 6, 4, 2, 0 };
 
-    int len = "\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\0\0\0\0\0\0\0\0\2\2\2\2\3\3\4"
+    // NOLINTNEXTLINE(bugprone-signed-char-misuse)
+    int const len = "\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\0\0\0\0\0\0\0\0\2\2\2\2\3\3\4"
         [static_cast<unsigned char>(*s) >> 3];
     // Compute the pointer to the next character early so that the next iteration can start working
     // on the next character. Neither Clang nor GCC figure out this reordering on their own.
     const char* next = s + len + !len;
 
-    using uchar = unsigned char;
+    using uchar = unsigned char;  // NOLINT(readability-identifier-naming)
 
     // Assume a four-byte character and load four bytes. Unused bits are shifted out.
-    *c = uint32_t(uchar(s[0]) & masks[len]) << 18;
-    *c |= uint32_t(uchar(s[1]) & 0x3f) << 12;
-    *c |= uint32_t(uchar(s[2]) & 0x3f) << 6;
-    *c |= uint32_t(uchar(s[3]) & 0x3f) << 0;
+    *c = static_cast<uint32_t>(static_cast<uchar>(s[0]) & masks[len]) << 18;
+    *c |= static_cast<uint32_t>(static_cast<uchar>(s[1]) & 0x3f) << 12;
+    *c |= static_cast<uint32_t>(static_cast<uchar>(s[2]) & 0x3f) << 6;
+    *c |= static_cast<uint32_t>(static_cast<uchar>(s[3]) & 0x3f) << 0;
     *c >>= shiftc[len];
 
     // Accumulate the various error conditions.
     *e = (*c < mins[len]) << 6;  // non-canonical encoding
     *e |= ((*c >> 11) == 0x1b) << 7;  // surrogate half?
     *e |= (*c > 0x10FFFF) << 8;  // out of range?
-    *e |= (uchar(s[1]) & 0xc0) >> 2;
-    *e |= (uchar(s[2]) & 0xc0) >> 4;
-    *e |= uchar(s[3]) >> 6;
+    *e |= (static_cast<uchar>(s[1]) & 0xc0) >> 2;
+    *e |= (static_cast<uchar>(s[2]) & 0xc0) >> 4;
+    *e |= static_cast<uchar>(s[3]) >> 6;
     *e ^= 0x2a;  // top two bits of each tail byte correct?
     *e >>= shifte[len];
 
@@ -70,19 +71,21 @@ inline void for_each_codepoint(std::string_view s, F f) {
     auto decode = [f](const char* buf_ptr, const char* ptr) {
         auto cp = uint32_t();
         auto error = 0;
-        auto end = utf8_decode(buf_ptr, &cp, &error);
-        bool result =
+        char const* end = utf8_decode(buf_ptr, &cp, &error);
+        bool const result =
             f(error ? invalid_code_point : cp,
               std::string_view(ptr, error ? 1 : static_cast<std::size_t>(end - buf_ptr)));
+        // NOLINTNEXTLINE(readability-avoid-nested-conditional-operator)
         return result ? (error ? buf_ptr + 1 : end) : nullptr;
     };
-    auto p = s.data();
+    char const* p = s.data();
     const size_t block_size = 4;  // utf8_decode always reads blocks of 4 chars.
     if (s.size() >= block_size) {
-        for (auto end = p + s.size() - block_size + 1; p < end;) {
+        for (char const* end = p + s.size() - block_size + 1; p < end;) {
             p = decode(p, p);
-            if (!p)
+            if (!p) {
                 return;
+            }
         }
     }
     if (auto num_chars_left = s.data() + s.size() - p) {
@@ -91,8 +94,9 @@ inline void for_each_codepoint(std::string_view s, F f) {
         const char* buf_ptr = buf;
         do {
             auto end = decode(buf_ptr, p);
-            if (!end)
+            if (!end) {
                 return;
+            }
             p += end - buf_ptr;
             buf_ptr = end;
         } while (buf_ptr - buf < num_chars_left);
@@ -103,9 +107,10 @@ inline void for_each_codepoint(std::string_view s, F f) {
 inline auto display_width(std::string_view s) -> size_t {
     size_t num_code_points = 0;
     // It is not a lambda for compatibility with C++14.
+    // NOLINTNEXTLINE(readability-identifier-naming)
     struct count_code_points {
         size_t* count;
-        auto operator()(uint32_t cp, std::string_view) const -> bool {
+        auto operator()(uint32_t cp, std::string_view /*unused*/) const -> bool {
             *count += static_cast<unsigned>(
                 1
                 + (cp >= 0x1100

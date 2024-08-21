@@ -129,7 +129,7 @@ auto byte_offset_to_line(
             // Our search starts at `byte_offset - 1`, because we cannot include the newline
             // character exactly at `byte_offset`. Therefore, we need to check if `byte_offset` is
             // 0.
-            return std::size_t(0);
+            return static_cast<std::size_t>(0);
         } else if (byte_offset >= source.size()) {
             // If the requested position exceeds the valid range of `source`, we cannot use
             // `rfind()` to locate the start of this line, as there may not necessarily be a newline
@@ -156,8 +156,9 @@ auto byte_offset_to_line(
         // the valid range, we need to consider the hypothetical line where `byte_offset` is
         // located. We only add this hypothetical line if `source` does not end with '\n'.
         if (byte_offset >= source.size() && start_offset != source.size()) {
-            if (!source.empty() && source.back() != '\n')
+            if (!source.empty() && source.back() != '\n') {
                 ++lines;
+            }
         }
 
         return std::make_pair(start_line + lines, find_line_start());
@@ -194,6 +195,9 @@ auto byte_offset_to_line(
     // values of `line_offset_cache`, which are also sorted.
 
     // Points to the cached line closest to and following `byte_offset`.
+    // NOLINTBEGIN(misc-include-cleaner): The include cleaner mistakenly assumes that `<algorithm>`
+    // is not the header for `std::ranges::upper_bound`, resulting in the warning. See
+    // https://github.com/llvm/llvm-project/issues/94459.
     auto const closest_next_iter = std::ranges::upper_bound(
         line_offset_cache,
         byte_offset,
@@ -201,6 +205,7 @@ auto byte_offset_to_line(
         // We search using the values associated with the keys in the map.
         [](auto const& pair) { return pair.second; }
     );
+    // NOLINTEND(misc-include-cleaner)
 
     // Points to the cached line closest to and preceding `byte_offset`. If the actual line
     // containing `byte_offset` is already in the cache, it points to that line.

@@ -15,7 +15,7 @@ TEST(HumanRendererMultilineAnnotationTest, BasicFormat) {
     std::cout << "Hello World" << '\n';
 })";
 
-    ants::HumanRenderer renderer;
+    ants::HumanRenderer const renderer;
 
     EXPECT_EQ(
         renderer
@@ -209,7 +209,7 @@ TEST(HumanRendererMultilineAnnotationTest, Depth) {
     std::cout << "World";
 })";
 
-    ants::HumanRenderer renderer;
+    ants::HumanRenderer const renderer;
 
     EXPECT_EQ(
         renderer
@@ -382,7 +382,7 @@ TEST(HumanRendererMultilineAnnotationTest, LabelPosition) {
     std::cout << "World";
 })";
 
-    ants::HumanRenderer renderer;
+    ants::HumanRenderer const renderer;
 
     EXPECT_EQ(
         renderer
@@ -1837,7 +1837,7 @@ TEST(HumanRendererMultilineAnnotationTest, MultilineLabel) {
     std::cout << "World";
 })";
 
-    ants::HumanRenderer renderer;
+    ants::HumanRenderer const renderer;
 
     EXPECT_EQ(
         renderer
@@ -2191,7 +2191,7 @@ TEST(HumanRendererMultilineAnnotationTest, MergeAnnotation) {
     std::cout << "World";
 })";
 
-    ants::HumanRenderer renderer;
+    ants::HumanRenderer const renderer;
 
     EXPECT_EQ(
         renderer
