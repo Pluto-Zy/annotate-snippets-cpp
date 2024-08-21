@@ -324,7 +324,7 @@ auto normalize_source(std::string_view source, unsigned display_tab_width) -> st
 /// `hash_combine` implementation from Boost.
 template <class T>
 auto hash_combine(std::size_t seed, T const& value) -> std::size_t {
-    std::hash<T> hasher;
+    std::hash<T> const hasher;
     seed ^= hasher(value) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     return seed;
 }
@@ -1225,7 +1225,7 @@ public:
         result.compute_display_columns(source, renderer.display_tab_width);
 
         for (auto& [line_no, line] : result.lines_) {
-            result.compute_label_line_positions(renderer.label_position, line);
+            AnnotatedLines::compute_label_line_positions(renderer.label_position, line);
             (void) line_no;
         }
 
@@ -1634,7 +1634,7 @@ private:
         // Start of the current foldable area.
         unsigned foldable_area_beg = 0;
         // End of the current foldable area.
-        unsigned foldable_area_end = static_cast<unsigned>(-1);
+        auto foldable_area_end = static_cast<unsigned>(-1);
         for (auto const& [line_no, annotated_line] : lines_) {
             // Determine if a line can be folded. We require that this line must have annotations
             // (lines without annotations should be handled in `handle_unannotated_lines`), and all
@@ -1834,8 +1834,11 @@ private:
                 // the new label to it.
                 old_annotation.label.insert(
                     old_annotation.label.end(),
+                    // NOLINTBEGIN(bugprone-use-after-move): If insertion fails, `annotation` won't
+                    // be moved away.
                     std::make_move_iterator(annotation.label.begin()),
                     std::make_move_iterator(annotation.label.end())
+                    // NOLINTEND(bugprone-use-after-move)
                 );
 
                 old_annotation.label_display_width = std::ranges::max(
@@ -1865,7 +1868,7 @@ private:
 
     /// Calculates the position of the first line of the annotation's label, i.e., the value of the
     /// `Annotation::label_line_position` member.
-    void compute_label_line_positions(
+    static void compute_label_line_positions(
         HumanRenderer::LabelPosition label_position,
         AnnotatedLine& line
     ) {
@@ -2223,6 +2226,7 @@ private:
                 return annotation->label_line_position;
             }
 
+            // NOLINTNEXTLINE(readability-make-member-function-const)
             auto label_line_position() -> unsigned& {
                 return annotation->label_line_position;
             }

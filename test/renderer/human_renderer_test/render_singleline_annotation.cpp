@@ -16,7 +16,7 @@ TEST(HumanRendererSinglelineAnnotationTest, BasicFormat) {
     std::cout << result << '\n';
 })";
 
-    ants::HumanRenderer renderer;
+    ants::HumanRenderer const renderer;
 
     EXPECT_EQ(
         renderer
@@ -782,7 +782,7 @@ TEST(HumanRendererSinglelineAnnotationTest, MultilineLabel) {
     std::cout << result << '\n';
 })";
 
-    ants::HumanRenderer renderer;
+    ants::HumanRenderer const renderer;
 
     EXPECT_EQ(
         renderer
@@ -878,7 +878,7 @@ TEST(HumanRendererSinglelineAnnotationTest, MultilineLabel) {
 
 TEST(HumanRendererSinglelineAnnotationTest, MergeAnnotation) {
     std::string_view const source = "func(args)";
-    ants::HumanRenderer renderer;
+    ants::HumanRenderer const renderer;
 
     EXPECT_EQ(
         renderer

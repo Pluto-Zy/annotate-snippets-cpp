@@ -1,7 +1,7 @@
 #ifndef ANNOTATE_SNIPPETS_ANNOTATED_SOURCE_HPP
 #define ANNOTATE_SNIPPETS_ANNOTATED_SOURCE_HPP
 
-#include "styled_string_view.hpp"
+#include "annotate_snippets/styled_string_view.hpp"
 
 #include <concepts>
 #include <cstddef>

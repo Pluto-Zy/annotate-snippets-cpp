@@ -2,6 +2,7 @@
 
 #include "gtest/gtest.h"
 
+#include <cstddef>
 #include <type_traits>
 #include <vector>
 
@@ -9,7 +10,7 @@ namespace {
 TEST(AnnotatedSourceTest, LineOffset) {
 #define TEST_CASE_IMPL(...)                                                                        \
     ants::AnnotatedSource as(source);                                                              \
-    for (unsigned line : { __VA_ARGS__ }) {                                                        \
+    for (unsigned const line : { __VA_ARGS__ }) {                                                  \
         if (line < line_starts.size()) {                                                           \
             EXPECT_EQ(as.line_offset(line), line_starts[line]);                                    \
         } else {                                                                                   \

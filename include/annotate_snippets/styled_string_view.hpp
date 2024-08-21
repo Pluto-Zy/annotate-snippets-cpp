@@ -2,7 +2,7 @@
 #define ANNOTATE_SNIPPETS_STYLED_STRING_VIEW_HPP
 
 #include "annotate_snippets/detail/styled_string_impl.hpp"
-#include "style.hpp"
+#include "annotate_snippets/style.hpp"
 
 #include <concepts>
 #include <cstddef>

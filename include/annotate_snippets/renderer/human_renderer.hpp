@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <ranges>
 #include <string_view>
+#include <vector>
 
 namespace ants {
 class HumanRenderer {

@@ -1,6 +1,9 @@
 #include "annotate_snippets/detail/styled_string_impl.hpp"
 
-#include <algorithm>
+#include "annotate_snippets/style.hpp"
+
+#include <algorithm>  // NOLINT(misc-include-cleaner): Required for std::ranges::lower_bound.
+#include <cstddef>
 #include <initializer_list>
 #include <iterator>
 #include <string_view>
@@ -15,6 +18,9 @@ void StyledStringImpl::set_style(Style style, std::size_t start_index, std::size
     }
 
     // We assume that styled_parts_ is non-empty and styled_parts_.front().start_index is 0.
+    // NOLINTBEGIN(misc-include-cleaner): The include cleaner mistakenly assumes that `<algorithm>`
+    // is not the header for `std::ranges::lower_bound` and `std::ranges::upper_bound`, resulting in
+    // the warning. See https://github.com/llvm/llvm-project/issues/94459.
     auto const beg_iter = std::ranges::lower_bound(
         styled_parts_,
         start_index,
@@ -27,6 +33,8 @@ void StyledStringImpl::set_style(Style style, std::size_t start_index, std::size
         std::ranges::less(),
         [](StyledPart const& part) { return part.start_index; }
     );
+    // NOLINTEND(misc-include-cleaner)
+
     // This iterator points to the last element to be removed. We must save the style of the
     // element. Note that since the first element of styled_parts_ is 0, we can find that end_iter
     // won't be styled_parts_.begin(), so that we can call prev() on it safely.

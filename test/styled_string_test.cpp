@@ -1,7 +1,10 @@
+#include "annotate_snippets/detail/styled_string_impl.hpp"
 #include "annotate_snippets/style.hpp"
 #include "annotate_snippets/styled_string.hpp"
 
 #include "gtest/gtest.h"
+
+#include <vector>
 
 namespace {
 using LineParts = std::vector<std::vector<ants::StyledStringViewPart>>;

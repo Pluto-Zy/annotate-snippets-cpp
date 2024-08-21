@@ -218,7 +218,7 @@ public:
         // However, due to a GCC bug (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100366), g++
         // incorrectly assumes that this code causes overlapping `__builtin_memcpy` calls.
         // Therefore, we use `std::ranges::copy()` instead.
-        std::ranges::copy(content, std::ranges::next(content_.begin(), position));
+        std::ranges::copy(content, std::ranges::next(content_.begin(), static_cast<int>(position)));
         set_style(style, position, position + content.size());
     }
 
