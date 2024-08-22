@@ -4,6 +4,8 @@
 #include <climits>
 #include <concepts>
 #include <cstdint>
+#include <ostream>
+#include <string_view>
 #include <type_traits>
 
 namespace ants {
@@ -62,6 +64,10 @@ public:
         text_styles_(static_cast<std::uint8_t>(text_styles)),
         foreground_(foreground_color),
         background_(background_color) { }
+
+    /// Outputs the string `content` to the output stream associated with `out`, rendered with the
+    /// current style.
+    void render_string(std::ostream& out, std::string_view content) const;
 
     constexpr auto foreground_color() const -> PredefinedColor {
         return foreground_;
