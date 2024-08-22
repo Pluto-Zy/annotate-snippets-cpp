@@ -38,6 +38,7 @@ include(AddRang)
 
 add_library(annotate_snippets
     src/annotated_source.cpp
+    src/style_spec.cpp
     src/detail/styled_string_impl.cpp
     src/renderer/human_renderer.cpp
 )

@@ -4,12 +4,16 @@
 #include "annotate_snippets/annotated_source.hpp"
 #include "annotate_snippets/detail/diag/diag_entry_impl.hpp"
 #include "annotate_snippets/detail/diag/level.hpp"
+#include "annotate_snippets/detail/styled_string_impl.hpp"
 #include "annotate_snippets/diag.hpp"
+#include "annotate_snippets/style_spec.hpp"
 #include "annotate_snippets/styled_string.hpp"
 #include "annotate_snippets/styled_string_view.hpp"
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
+#include <ostream>
 #include <ranges>
 #include <string_view>
 #include <vector>
@@ -125,6 +129,7 @@ public:
         AlignRight,
     } line_num_alignment = AlignRight;
 
+    /// Renders `diag` to a `StyledString` and returns the rendering result.
     template <class Level>
     auto render_diag(Diag<Level> diag) const -> StyledString {
         StyledString render_target;
@@ -147,6 +152,28 @@ public:
         return render_target;
     }
 
+    /// Renders `diag` to the output stream associated with `out`. The rendering style is specified
+    /// by `style_sheet`.
+    template <class Level, style_sheet_for<Level> StyleSheet = PlainTextStyleSheet>
+    void render_diag(std::ostream& out, Diag<Level> diag, StyleSheet style_sheet = {}) const {
+        unsigned const max_line_num_len = compute_max_line_num_len(diag);
+
+        // Render the primary diagnostic entry.
+        render_diag_entry(
+            out,
+            diag.primary_diag_entry(),
+            max_line_num_len,
+            /*is_secondary=*/false,
+            style_sheet
+        );
+
+        // Render all secondary diagnostic entries.
+        for (DiagEntry<Level>& entry : diag.secondary_diag_entries()) {
+            render_diag_entry(out, entry, max_line_num_len, /*is_secondary=*/true, style_sheet);
+        }
+    }
+
+    /// Appends the rendering of a single `DiagEntry` to the end of a `StyledString`.
     template <class Level, class Derived>
     void render_diag_entry(
         StyledString& render_target,
@@ -194,6 +221,36 @@ public:
         }
 
         render_annotated_sources(render_target, diag_entry.associated_sources(), max_line_num_len);
+    }
+
+    /// Renders a single `DiagEntry` to the output stream associated with `out`. The rendering style
+    /// is specified by `style_sheet`.
+    template <class Level, class Derived, style_sheet_for<Level> StyleSheet>
+    void render_diag_entry(
+        std::ostream& out,
+        detail::DiagEntryImpl<Level, Derived>& diag_entry,
+        unsigned max_line_num_len,
+        bool is_secondary,
+        StyleSheet const& style_sheet
+    ) const {
+        StyledString render_target;
+        // Render the diagnostic entry to `render_target`.
+        render_diag_entry(render_target, diag_entry, max_line_num_len, is_secondary);
+
+        // Render the styled string to the output stream.
+        for (std::vector<StyledStringViewPart> const& line : render_target.styled_line_parts()) {
+            for (StyledStringViewPart const& part : line) {
+                // The style used to render `part`. For `Style::Default`, the default style is
+                // always used.
+                StyleSpec const spec = part.style == Style::Default
+                    ? StyleSpec()
+                    : std::invoke_r<StyleSpec>(style_sheet, part.style, diag_entry.level());
+
+                spec.render_string(out, part.content);
+            }
+
+            out << '\n';
+        }
     }
 
 private:
