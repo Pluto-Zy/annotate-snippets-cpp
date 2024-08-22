@@ -6,6 +6,7 @@
 #include "annotate_snippets/detail/diag/level.hpp"
 #include "annotate_snippets/detail/styled_string_impl.hpp"
 #include "annotate_snippets/diag.hpp"
+#include "annotate_snippets/style.hpp"
 #include "annotate_snippets/style_spec.hpp"
 #include "annotate_snippets/styled_string.hpp"
 #include "annotate_snippets/styled_string_view.hpp"
@@ -244,7 +245,9 @@ public:
                 // always used.
                 StyleSpec const spec = part.style == Style::Default
                     ? StyleSpec()
-                    : std::invoke_r<StyleSpec>(style_sheet, part.style, diag_entry.level());
+                    : static_cast<StyleSpec>(
+                          std::invoke(style_sheet, part.style, diag_entry.level())
+                      );
 
                 spec.render_string(out, part.content);
             }
