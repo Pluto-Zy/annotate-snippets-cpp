@@ -41,7 +41,7 @@ void StyleSpec::render_string(std::ostream& out, std::string_view content) const
     // clang-format off
 #define TEXT_STYLE_LIST                                                                            \
     TEXT_STYLE_MAP(Bold, bold) TEXT_STYLE_MAP(Dim, dim) TEXT_STYLE_MAP(Italic, italic)             \
-    TEXT_STYLE_MAP(Underline, underline) TEXT_STYLE_MAP(Reversed, reversed)                         \
+    TEXT_STYLE_MAP(Underline, underline) TEXT_STYLE_MAP(Reversed, reversed)                        \
     TEXT_STYLE_MAP(Conceal, conceal) TEXT_STYLE_MAP(Crossed, crossed)
     // clang-format on
 
