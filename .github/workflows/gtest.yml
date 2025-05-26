@@ -62,6 +62,7 @@ jobs:
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test
           sudo apt-get update
           sudo apt-get install -y ${{ matrix.compiler }}
+          echo "CXX=${{ matrix.compiler }}" >> $GITHUB_ENV
 
       - name: Configure CMake
         run: |
