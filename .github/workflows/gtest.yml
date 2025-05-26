@@ -28,11 +28,23 @@ jobs:
         if: startsWith(matrix.compiler, 'clang++')
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget lsb-release software-properties-common
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          VERSION=$(echo ${{ matrix.compiler }} | cut -d'-' -f2) # Extracts the version number
-          sudo ./llvm.sh $VERSION
+          sudo apt-get install -y wget lsb-release software-properties-common gnupg
+
+          VERSION=$(echo ${{ matrix.compiler }} | cut -d'-' -f2)
+
+          if [ "$VERSION" -lt 9 ]; then
+            echo "Installing legacy Clang version $VERSION from llvm.org"
+            echo "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-$VERSION main" | sudo tee /etc/apt/sources.list.d/llvm.list
+            wget -O - http://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+            sudo apt-get update
+            sudo apt-get install -y clang-$VERSION lldb-$VERSION lld-$VERSION
+          else
+            echo "Installing modern Clang version $VERSION via llvm.sh"
+            wget https://apt.llvm.org/llvm.sh
+            chmod +x llvm.sh
+            sudo ./llvm.sh $VERSION
+          fi
+
           echo "CC=clang-$VERSION" >> $GITHUB_ENV
           echo "CXX=clang++-$VERSION" >> $GITHUB_ENV
 
