@@ -161,9 +161,11 @@ auto StyledStringImpl::styled_line_parts(  //
         std::string_view const rest_content =
             std::exchange(old_part.content, old_part.content.substr(0, part_end - part_beg))
                 .substr(part_end - part_beg);
+        // clang-format off
         lines[cur_line_index].push_back(
             StyledStringViewPart { /*content=*/rest_content, /*style=*/ {} }
         );
+        // clang-format on
     }
 
     return lines;

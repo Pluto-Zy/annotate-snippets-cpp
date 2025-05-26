@@ -1299,12 +1299,15 @@ private:
     void handle_multiline_spans() {
         assign_multiline_depth();
 
-        // Compute the maximum depth. Note, if `multiline_annotations_` is not empty, what we're
-        // actually calculating is the maximum depth plus 1, as explained in the documentation
-        // comments for `depth_num_`.
+        // Compute the maximum depth.
         depth_num_ = 0;
         for (MultilineAnnotation const& annotation : multiline_annotations_) {
             depth_num_ = std::max(depth_num_, annotation.depth);
+        }
+        // Note that if `multiline_annotations_` is not empty, what we're actually calculating is
+        // the maximum depth plus 1, as explained in the documentation comments for `depth_num_`.
+        if (!multiline_annotations_.empty()) {
+            ++depth_num_;  // We need to add 1 to the maximum depth.
         }
 
         // Convert `MultilineAnnotation` into `Annotation`.

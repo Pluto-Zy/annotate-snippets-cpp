@@ -145,13 +145,11 @@ public:
         SourceLocation end,
         StyledStringView label
     ) {
-        primary_spans_.push_back(
-            LabeledSpan {
-                /*beg=*/beg,
-                /*end=*/end,
-                /*label=*/std::move(label),
-            }
-        );
+        primary_spans_.push_back(LabeledSpan {
+            /*beg=*/beg,
+            /*end=*/end,
+            /*label=*/std::move(label),
+        });
     }
 
     auto with_primary_labeled_annotation(
@@ -286,13 +284,11 @@ public:
         SourceLocation end,
         StyledStringView label
     ) {
-        secondary_spans_.push_back(
-            LabeledSpan {
-                /*beg=*/beg,
-                /*end=*/end,
-                /*label=*/std::move(label),
-            }
-        );
+        secondary_spans_.push_back(LabeledSpan {
+            /*beg=*/beg,
+            /*end=*/end,
+            /*label=*/std::move(label),
+        });
     }
 
     auto with_secondary_labeled_annotation(
