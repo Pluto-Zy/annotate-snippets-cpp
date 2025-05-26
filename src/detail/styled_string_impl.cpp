@@ -2,7 +2,7 @@
 
 #include "annotate_snippets/style.hpp"
 
-#include <algorithm>  // NOLINT(misc-include-cleaner): Required for std::ranges::lower_bound.
+#include <algorithm>
 #include <cstddef>
 #include <initializer_list>
 #include <iterator>
@@ -18,27 +18,23 @@ void StyledStringImpl::set_style(Style style, std::size_t start_index, std::size
     }
 
     // We assume that styled_parts_ is non-empty and styled_parts_.front().start_index is 0.
-    // NOLINTBEGIN(misc-include-cleaner): The include cleaner mistakenly assumes that `<algorithm>`
-    // is not the header for `std::ranges::lower_bound` and `std::ranges::upper_bound`, resulting in
-    // the warning. See https://github.com/llvm/llvm-project/issues/94459.
-    auto const beg_iter = std::ranges::lower_bound(
-        styled_parts_,
+    auto const beg_iter = std::lower_bound(
+        styled_parts_.begin(),
+        styled_parts_.end(),
         start_index,
-        std::ranges::less(),
-        [](StyledPart const& part) { return part.start_index; }
+        [](StyledPart const& lhs, std::size_t rhs) { return lhs.start_index < rhs; }
     );
-    auto const end_iter = std::ranges::upper_bound(
-        styled_parts_,
+    auto const end_iter = std::upper_bound(
+        styled_parts_.begin(),
+        styled_parts_.end(),
         end_index,
-        std::ranges::less(),
-        [](StyledPart const& part) { return part.start_index; }
+        [](std::size_t lhs, StyledPart const& rhs) { return lhs < rhs.start_index; }
     );
-    // NOLINTEND(misc-include-cleaner)
 
     // This iterator points to the last element to be removed. We must save the style of the
     // element. Note that since the first element of styled_parts_ is 0, we can find that end_iter
     // won't be styled_parts_.begin(), so that we can call prev() on it safely.
-    auto const last_iter = std::ranges::prev(end_iter);
+    auto const last_iter = std::prev(end_iter);
     Style const end_style = last_iter->style;
 
     // Replace the existing StyledParts in the range with updated StyledParts.
@@ -47,8 +43,8 @@ void StyledStringImpl::set_style(Style style, std::size_t start_index, std::size
     styled_parts_.insert(
         insert_pos,
         {
-            { .start_index = start_index, .style = style },
-            { .start_index = end_index, .style = end_style },
+            { /*start_index=*/start_index, /*style=*/style },
+            { /*start_index=*/end_index, /*style=*/end_style },
         }
     );
     // clang-format on
@@ -65,16 +61,18 @@ auto StyledStringImpl::styled_line_parts(  //
         if (pos == std::string_view::npos) {
             // We cannot find '\n', so we add the rest of the string as a new line to the result and
             // exit the loop.
-            lines.push_back({
-                { .content = content.substr(start), .style {} }
-            });
+            // clang-format off
+            lines.push_back({{ /*content=*/content.substr(start), /*style=*/ {} }});
+            // clang-format on
             break;
         } else {
+            // clang-format off
             lines.push_back({
                 // Note that the substring contains newline characters here, which will be removed
                 // in subsequent operations.
-                { .content = content.substr(start, pos - start + 1), .style {} }
+                { /*content=*/content.substr(start, pos - start + 1), /*style=*/ {} }
             });
+            // clang-format on
             start = pos + 1;
         }
     }
@@ -163,8 +161,8 @@ auto StyledStringImpl::styled_line_parts(  //
         std::string_view const rest_content =
             std::exchange(old_part.content, old_part.content.substr(0, part_end - part_beg))
                 .substr(part_end - part_beg);
-        lines[cur_line_index].push_back(  //
-            StyledStringViewPart { .content = rest_content, .style {} }
+        lines[cur_line_index].push_back(
+            StyledStringViewPart { /*content=*/rest_content, /*style=*/ {} }
         );
     }
 

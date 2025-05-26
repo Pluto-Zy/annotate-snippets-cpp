@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <functional>
 #include <iterator>
 #include <map>
 #include <string_view>
@@ -84,8 +83,9 @@ auto compute_line_offset(
     auto const closest_next_iter = line_offset_cache.upper_bound(target_line);
 
     // Points to the line closest to and immediately preceding the target line.
-    auto const closest_prev_iter =
-        std::ranges::prev(closest_next_iter, 1, line_offset_cache.begin());
+    auto const closest_prev_iter = closest_next_iter == line_offset_cache.begin()
+        ? closest_next_iter
+        : std::prev(closest_next_iter, 1);
 
     if (closest_next_iter != line_offset_cache.end()
         && closest_prev_iter != line_offset_cache.end()) {
@@ -149,9 +149,8 @@ auto byte_offset_to_line(
     // last line. This function does not modify the cache.
     auto const find_forward = [&](unsigned start_line, std::size_t start_offset) {
         // Counts the number of newline characters between [start_offset, byte_offset).
-        auto lines = static_cast<unsigned>(
-            std::ranges::count(source.substr(start_offset, byte_offset - start_offset), '\n')
-        );
+        std::string_view const substr = source.substr(start_offset, byte_offset - start_offset);
+        auto lines = static_cast<unsigned>(std::count(substr.begin(), substr.end(), '\n'));
         // If `byte_offset` exceeds the valid range of `source` but `start_offset` is still within
         // the valid range, we need to consider the hypothetical line where `byte_offset` is
         // located. We only add this hypothetical line if `source` does not end with '\n'.
@@ -180,9 +179,8 @@ auto byte_offset_to_line(
         --start_offset;
 
         // Counts the number of newline characters between [byte_offset, start_offset).
-        auto const lines = static_cast<unsigned>(
-            std::ranges::count(source.substr(byte_offset, start_offset - byte_offset), '\n')
-        );
+        std::string_view const substr = source.substr(byte_offset, start_offset - byte_offset);
+        auto const lines = static_cast<unsigned>(std::count(substr.begin(), substr.end(), '\n'));
 
         // Since we skipped a line, we need to decrement by an additional line.
         std::pair res(start_line - lines - 1, find_line_start());
@@ -195,22 +193,22 @@ auto byte_offset_to_line(
     // values of `line_offset_cache`, which are also sorted.
 
     // Points to the cached line closest to and following `byte_offset`.
-    // NOLINTBEGIN(misc-include-cleaner): The include cleaner mistakenly assumes that `<algorithm>`
-    // is not the header for `std::ranges::upper_bound`, resulting in the warning. See
-    // https://github.com/llvm/llvm-project/issues/94459.
-    auto const closest_next_iter = std::ranges::upper_bound(
-        line_offset_cache,
+    // NOLINTBEGIN(performance-inefficient-algorithm): Since we compare `byte_offset` with the value
+    // rather than the key in the map, we use `upper_bound` rather than `map::upper_bound`.
+    auto const closest_next_iter = std::upper_bound(
+        line_offset_cache.begin(),
+        line_offset_cache.end(),
         byte_offset,
-        std::ranges::less(),
         // We search using the values associated with the keys in the map.
-        [](auto const& pair) { return pair.second; }
+        [](std::size_t lhs, auto const& rhs) { return lhs < rhs.second; }
     );
-    // NOLINTEND(misc-include-cleaner)
+    // NOLINTEND(performance-inefficient-algorithm)
 
     // Points to the cached line closest to and preceding `byte_offset`. If the actual line
     // containing `byte_offset` is already in the cache, it points to that line.
-    auto const closest_prev_iter =
-        std::ranges::prev(closest_next_iter, 1, line_offset_cache.begin());
+    auto const closest_prev_iter = closest_next_iter == line_offset_cache.begin()
+        ? closest_next_iter
+        : std::prev(closest_next_iter, 1);
 
     if (closest_prev_iter != line_offset_cache.end()
         && closest_next_iter != line_offset_cache.end()) {
@@ -257,8 +255,8 @@ auto AnnotatedSource::line_offset(unsigned line) -> std::size_t {
 auto AnnotatedSource::byte_offset_to_line_col(std::size_t byte_offset) -> SourceLocation {
     auto const [line, line_start] = byte_offset_to_line(line_offsets_, byte_offset, source_);
     return {
-        .line = line,
-        .col = static_cast<unsigned>(byte_offset - line_start),
+        /*line=*/line,
+        /*col=*/static_cast<unsigned>(byte_offset - line_start),
     };
 }
 

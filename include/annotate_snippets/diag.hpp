@@ -4,7 +4,7 @@
 #include "annotate_snippets/detail/diag/diag_entry_impl.hpp"
 #include "annotate_snippets/detail/diag/level.hpp"
 
-#include <concepts>
+#include <type_traits>
 #include <vector>
 
 namespace ants {
@@ -18,19 +18,19 @@ namespace ants {
 /// 4. All the annotated source codes associated with this diagnostic entry (optional).
 ///
 /// TODO: Add an example to explain these terms.
-template <detail::diagnostic_level Level>
+template <class Level>
 class DiagEntry : public detail::DiagEntryImpl<Level, DiagEntry<Level>> {
     using detail::DiagEntryImpl<Level, DiagEntry>::DiagEntryImpl;
 };
 
 // Deduction guide for `DiagEntry<>`.
-template <detail::diagnostic_level Level, class... Args>
+template <class Level, class... Args, std::enable_if_t<detail::is_diagnostic_level<Level>, int> = 0>
 DiagEntry(Level, Args&&...) -> DiagEntry<Level>;
 
 /// Represents a complete diagnostic, consisting of several diagnostic entries (one primary
 /// diagnostic and several secondary diagnostics), which are rendered in sequence. `Diag` is the
 /// unit accepted by the renderer.
-template <detail::diagnostic_level Level>
+template <class Level>
 class Diag : public detail::DiagEntryImpl<Level, Diag<Level>> {
     using DiagEntryImpl = detail::DiagEntryImpl<Level, Diag>;
     using Base = DiagEntryImpl;
@@ -58,8 +58,9 @@ public:
         secondary_diags_.push_back(std::move(entry));
     }
 
-    template <class... Args>
-        requires std::constructible_from<DiagEntry<Level>, Args...>
+    template <
+        class... Args,
+        std::enable_if_t<std::is_constructible_v<DiagEntry<Level>, Args...>, int> = 0>
     void add_sub_diag_entry(Args&&... args) {
         secondary_diags_.emplace_back(std::forward<Args>(args)...);
     }
@@ -69,8 +70,9 @@ public:
         return *this;
     }
 
-    template <class... Args>
-        requires std::constructible_from<DiagEntry<Level>, Args...>
+    template <
+        class... Args,
+        std::enable_if_t<std::is_constructible_v<DiagEntry<Level>, Args...>, int> = 0>
     auto with_sub_diag_entry(Args&&... args) & -> Diag& {
         add_sub_diag_entry(std::forward<Args>(args)...);
         return *this;
@@ -81,8 +83,9 @@ public:
         return std::move(*this);
     }
 
-    template <class... Args>
-        requires std::constructible_from<DiagEntry<Level>, Args...>
+    template <
+        class... Args,
+        std::enable_if_t<std::is_constructible_v<DiagEntry<Level>, Args...>, int> = 0>
     auto with_sub_diag_entry(Args&&... args) && -> Diag&& {
         add_sub_diag_entry(std::forward<Args>(args)...);
         return std::move(*this);
@@ -93,7 +96,7 @@ private:
 };
 
 // Deduction guide for `Diag<>`.
-template <detail::diagnostic_level Level, class... Args>
+template <class Level, class... Args, std::enable_if_t<detail::is_diagnostic_level<Level>, int> = 0>
 Diag(Level, Args&&...) -> Diag<Level>;
 }  // namespace ants
 

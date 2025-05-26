@@ -13,10 +13,8 @@
 #include <functional>
 #include <iterator>
 #include <map>
-#include <memory>
 #include <queue>
 #include <ranges>
-#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -52,23 +50,18 @@ auto HumanRenderer::compute_max_line_num_len(AnnotatedSource const& source) cons
         }
     };
 
-    unsigned const primary_max = source.primary_spans().empty()
-        ? 0u
-        : std::ranges::max(source.primary_spans() | std::views::transform(span_trans));
+    unsigned result = 0;
+    // Primary annotations are always displayed.
+    for (LabeledSpan const& span : source.primary_spans()) {
+        result = std::max(result, span_trans(span));
+    }
 
-    unsigned const result = [&] {
-        if (short_message) {
-            // If `short_message` is `true`, secondary annotations are not displayed.
-            return primary_max;
-        } else {
-            unsigned const secondary_max = source.secondary_spans().empty()
-                ? 0u
-                : std::ranges::max(source.secondary_spans() | std::views::transform(span_trans))
-                    + source.first_line_number();
-
-            return std::ranges::max(primary_max, secondary_max);
+    if (!short_message) {
+        // Secondary annotations are only displayed if `short_message` is `false`.
+        for (LabeledSpan const& span : source.secondary_spans()) {
+            result = std::max(result, span_trans(span));
         }
-    }();
+    }
 
     return compute_digits_num(result + source.first_line_number());
 }
@@ -80,7 +73,7 @@ using std::unreachable;
 #else
 /// `std::unreachable()` implementation from
 /// [cppreference](https://en.cppreference.com/w/cpp/utility/unreachable).
-[[noreturn]] constexpr void unreachable() {
+[[noreturn]] void unreachable() {
     // Uses compiler specific extensions if possible. Even if no extension is used, undefined
     // behavior is still raised by an empty function body and the noreturn attribute.
     #if defined(_MSC_VER) && !defined(__clang__)  // MSVC
@@ -105,18 +98,13 @@ void render_multiline_messages(
     Style auto_replacement
 ) {
     std::vector<std::vector<StyledStringViewPart>> const lines = message.styled_line_parts();
-    if (lines.empty()) {
-        return;
-    }
+    for (std::size_t i = 0; i != lines.size(); ++i) {
+        if (i != 0) {
+            render_target.append_newline();
+            render_target.append_spaces(indentation);
+        }
 
-    // Render the first line.
-    render_target.append(lines.front(), auto_replacement);
-
-    // Render the subsequent lines. Before rendering each line, insert sufficient indentation.
-    for (std::vector<StyledStringViewPart> const& parts : lines | std::views::drop(1)) {
-        render_target.append_newline();
-        render_target.append_spaces(indentation);
-        render_target.append(parts, auto_replacement);
+        render_target.append(lines[i], auto_replacement);
     }
 }
 }  // namespace
@@ -185,10 +173,13 @@ auto HumanRenderer::render_file_line_col_short_message(
 ) -> unsigned {
     unsigned final_width = 0;
 
-    for (unsigned idx = 0; AnnotatedSource const& source :
-                           sources | std::views::filter([](AnnotatedSource const& source) {
-                               return !source.primary_spans().empty();
-                           })) {
+    unsigned idx = 0;
+    for (AnnotatedSource const& source : sources) {
+        if (source.primary_spans().empty()) {
+            // Skip sources without primary annotations.
+            continue;
+        }
+
         if (idx != 0) {
             render_target.append_newline();
         }
@@ -605,8 +596,8 @@ private:
         label_display_width(compute_label_display_width()),
         // We cannot calculate the value of the `display` member here, because we need to know the
         // source code associated with this annotation.
-        col_beg { .byte = col_beg, .display = col_beg },
-        col_end { .byte = col_end, .display = col_end },
+        col_beg { /*byte=*/col_beg, /*display=*/col_beg },
+        col_end { /*byte=*/col_end, /*display=*/col_end },
         label_line_position(0),
         type(type),
         is_primary(is_primary) { }
@@ -614,23 +605,24 @@ private:
     /// Returns the display width of the label `label`. It is calculated as the maximum width of all
     /// lines in `label`.
     auto compute_label_display_width() const -> unsigned {
-        if (label.empty()) {
-            return 0;
-        } else {
-            auto const compute_line_display_width =  //
-                [](std::vector<StyledStringViewPart> const& line) {
-                    unsigned width = 0;
-                    for (auto const& [content, style] : line) {
-                        width += static_cast<unsigned>(detail::display_width(content));
-                        // Suppresses warnings for unused variables.
-                        (void) style;
-                    }
+        // Returns the display width of a single line in the label.
+        auto const compute_line_display_width = [](std::vector<StyledStringViewPart> const& line) {
+            unsigned width = 0;
+            for (auto const& [content, style] : line) {
+                width += static_cast<unsigned>(detail::display_width(content));
+                // Suppresses warnings for unused variables.
+                (void) style;
+            }
 
-                    return width;
-                };
+            return width;
+        };
 
-            return std::ranges::max(label | std::views::transform(compute_line_display_width));
+        unsigned result = 0;
+        for (std::vector<StyledStringViewPart> const& line : label) {
+            result = std::max(result, compute_line_display_width(line));
         }
+
+        return result;
     }
 };
 
@@ -660,37 +652,35 @@ struct AnnotatedLine {
         unsigned depth_num,
         HumanRenderer const& human_renderer
     ) {
+        // This lambda function is used to compute the number of lines that the annotation will
+        // occupy. If the annotation is on the same line as the source code (e.g., for
+        // `MultilineBody` annotations), it returns 0.
+        auto const compute_annotation_line_count = [](Annotation const& annotation) {
+            // Skip `MultilineBody` annotations, as these do not have associated underlines or
+            // labels.
+            if (annotation.type == Annotation::MultilineBody) {
+                return 0u;
+            }
+
+            // The last line occupied by the annotation, where `annotation.label.size()` is the
+            // number of lines in the label.
+            unsigned const label_end_line =
+                annotation.label_line_position + static_cast<unsigned>(annotation.label.size());
+
+            // Since the first line is used for drawing the underline, we need at least 1 line.
+            return std::max(label_end_line, 1u);
+        };
+
         // Calculate how many lines are needed to accommodate all rendered annotations and their
         // labels.
-        unsigned const annotation_line_count = [&] {
-            if (annotations.empty()) {
-                return 0u;
-            } else {
-                return std::ranges::max(
-                    annotations | std::views::transform([](Annotation const& annotation) {
-                        // Skip `MultilineBody` annotations, as these do not have associated
-                        // underlines or labels.
-                        if (annotation.type == Annotation::MultilineBody) {
-                            return 0u;
-                        } else {
-                            unsigned const label_end_line = annotation.label_line_position
-                                + static_cast<unsigned>(annotation.label.size());
-
-                            if (annotation.label_line_position == 0) {
-                                // Since the first line is used for drawing the underline, we need
-                                // at least 1 line.
-                                return std::ranges::max(label_end_line, 1u);
-                            } else {
-                                return label_end_line;
-                            }
-                        }
-                    })
-                );
-            }
-        }();
+        unsigned annotation_total_line_count = 0;
+        for (Annotation const& annotation : annotations) {
+            annotation_total_line_count =
+                std::max(annotation_total_line_count, compute_annotation_line_count(annotation));
+        }
 
         // We create a `StyledString` for each line to facilitate later rendering.
-        std::vector<StyledString> annotation_lines(annotation_line_count);
+        std::vector<StyledString> annotation_lines(annotation_total_line_count);
 
         // Represents the starting rendering position for the source code line, and all annotations'
         // underlines and labels should start from this position. For example:
@@ -788,7 +778,7 @@ private:
     ///   |          ^
     ///   |  ________|      <-- Render this horizontal connection line.
     void render_horizontal_lines(
-        std::span<StyledString> annotation_lines,
+        std::vector<StyledString>& annotation_lines,
         unsigned source_code_indentation
     ) const {
         for (Annotation const& annotation : annotations) {
@@ -839,15 +829,19 @@ private:
     ///   |  ________^
     ///   | |               <-- Render this vertical line
     void render_vertical_lines(
-        std::span<StyledString> annotation_lines,
+        std::vector<StyledString>& annotation_lines,
         unsigned source_code_indentation,
         HumanRenderer::LabelPosition label_position
     ) {
         // We render from back to front according to the order of the lines where the labels are
         // located, to ensure the correct overlap relationship.
-        std::ranges::sort(annotations, [&](Annotation const& lhs, Annotation const& rhs) {
-            return rhs.label_line_position < lhs.label_line_position;
-        });
+        std::sort(
+            annotations.begin(),
+            annotations.end(),
+            [&](Annotation const& lhs, Annotation const& rhs) {
+                return rhs.label_line_position < lhs.label_line_position;
+            }
+        );
 
         // Draw all vertical connecting lines in the sorted order.
         for (Annotation const& annotation : annotations) {
@@ -863,15 +857,16 @@ private:
                     std::get<0>(annotation.label_display_range(label_position))
                     + source_code_indentation;
 
-                for (StyledString& line :
-                     annotation_lines.subspan(1, annotation.label_line_position - 1)) {
-                    line.set_styled_content(connector_position, "|", connector_style);
+                for (unsigned i = 1; i != annotation.label_line_position; ++i) {
+                    annotation_lines[i]
+                        .set_styled_content(connector_position, "|", connector_style);
                 }
             }
 
             // For all multiline annotations, we need to draw their body, i.e., the vertical line
-            // connecting the head and tail.
-            auto const body_lines = [&] {
+            // connecting the head and tail. This function returns the starting and ending line
+            // numbers of the body.
+            auto const [body_start, body_end] = [&] {
                 switch (annotation.type) {
                 case Annotation::MultilineHead:
                     // For the head, it should start from the first line of the label and connect to
@@ -881,15 +876,9 @@ private:
                     // 123 |      func(args)
                     //     |  ________^
                     //     | |                  <-- Starting position
-                    //
-                    // Note that before P1739R4, providing `std::views::drop` with `std::span` would
-                    // result in `std::ranges::drop_view` rather than `std::span`, causing
-                    // inconsistent return types in some compilers (like g++-11) within this lambda
-                    // expression's branches. Therefore, we supply `drop_view` as an argument to
-                    // `std::span` explicitly.
-                    return std::span(
-                        annotation_lines
-                        | std::views::drop(std::ranges::max(1u, annotation.label_line_position))
+                    return std::make_pair(
+                        std::max(1u, annotation.label_line_position),
+                        static_cast<unsigned>(annotation_lines.size())
                     );
                 case Annotation::MultilineTail:
                     // For the tail, it should start from the first line of `annotation_lines` and
@@ -897,26 +886,18 @@ private:
                     //
                     // 123 | |    func(args)
                     //     | |________^         <-- Ending position
-                    //
-                    // Note that before P1739R4, providing `std::views::take` with `std::span` would
-                    // result in `std::ranges::take_view` rather than `std::span`, causing
-                    // inconsistent return types in some compilers (like g++-11) within this lambda
-                    // expression's branches. Therefore, we supply `take_view` as an argument to
-                    // `std::span` explicitly.
-                    return std::span(
-                        annotation_lines
-                        | std::views::take(std::ranges::max(1u, annotation.label_line_position))
-                    );
+                    return std::make_pair(0u, std::max(1u, annotation.label_line_position));
                 case Annotation::MultilineBody:
                     // For the body of multiline annotations, it should traverse all lines.
-                    return annotation_lines;
+                    return std::make_pair(0u, static_cast<unsigned>(annotation_lines.size()));
                 default:
-                    return std::span<StyledString>();
+                    return std::make_pair(0u, 0u);
                 }
             }();
 
-            for (StyledString& line : body_lines) {
-                line.set_styled_content(annotation.col_beg.display, "|", connector_style);
+            for (unsigned i = body_start; i != body_end; ++i) {
+                annotation_lines[i]
+                    .set_styled_content(annotation.col_beg.display, "|", connector_style);
             }
         }
     }
@@ -926,7 +907,7 @@ private:
     /// 1 |     func(args)
     ///   |          ^^^^ label     <-- Render the label
     void render_labels(
-        std::span<StyledString> annotation_lines,
+        std::vector<StyledString>& annotation_lines,
         unsigned source_code_indentation,
         HumanRenderer::LabelPosition label_position
     ) const {
@@ -938,15 +919,11 @@ private:
                     + source_code_indentation;
 
                 // Render the label line by line.
-                for (unsigned const line_idx :
-                     std::views::iota(0u, static_cast<unsigned>(annotation.label.size()))) {
+                for (std::size_t line_idx = 0; line_idx != annotation.label.size(); ++line_idx) {
                     // The target for the `line_idx` line of the label.
                     StyledString& target_line =
                         annotation_lines[annotation.label_line_position + line_idx];
                     // The content of the `line_idx` line of the label.
-                    //
-                    // TODO: When the compiler supports it, rewrite this loop using
-                    // `std::views::enumerate`.
                     std::vector<StyledStringViewPart> const& label_line =
                         annotation.label[line_idx];
 
@@ -998,18 +975,17 @@ private:
     ///     func(args)
     ///         ^^^^^^
     void render_underlines(
-        std::span<StyledString> annotation_lines,
+        std::vector<StyledString>& annotation_lines,
         unsigned source_code_indentation,
         char primary_underline,
         char secondary_underline
     ) {
-        auto const primary_annotations =
-            std::ranges::partition(annotations, [](Annotation const& annotation) {
-                return !annotation.is_primary;
-            });
-        auto const secondary_annotations = std::ranges::subrange(
-            std::ranges::begin(annotations),
-            std::ranges::begin(primary_annotations)
+        // We partition the annotations into primary and secondary annotations. The iterator
+        // `primary_annotations` points to the first primary annotation.
+        auto const primary_annotations_begin = std::partition(
+            annotations.begin(),
+            annotations.end(),
+            [](Annotation const& annotation) { return !annotation.is_primary; }
         );
 
         // We first render all secondary annotation underlines, then the primary annotation
@@ -1041,19 +1017,21 @@ private:
         // Next, we identify all the underlines of secondary annotations that are completely covered
         // by the underlines of primary annotations and render them to the forefront. This ensures
         // we meet the second requirement.
-        for (Annotation const& secondary_annotation : secondary_annotations) {
-            auto const [secondary_beg, secondary_end] =
-                secondary_annotation.underline_display_range();
+        for (auto secondary_iter = annotations.begin(); secondary_iter != primary_annotations_begin;
+             ++secondary_iter)  //
+        {
+            auto const [secondary_beg, secondary_end] = secondary_iter->underline_display_range();
 
-            for (Annotation const& primary_annotation : primary_annotations) {
-                auto const [primary_beg, primary_end] =
-                    primary_annotation.underline_display_range();
+            for (auto primary_iter = primary_annotations_begin; primary_iter != annotations.end();
+                 ++primary_iter)  //
+            {
+                auto const [primary_beg, primary_end] = primary_iter->underline_display_range();
 
-                // If the primary annotation `primary_annotation` completely covers the underline of
-                // `secondary_annotation`, then render `secondary_annotation` at the front. Note
-                // that if these two annotations have exactly the same underline range, we do not
-                // prioritize `secondary_annotation` because this does not increase the number of
-                // visible underlines.
+                // If the primary annotation completely covers the underline of the secondary
+                // annotation, then render `secondary_annotation` at the front. Note that if these
+                // two annotations have exactly the same underline range, we do not prioritize
+                // `secondary_annotation` because this does not increase the number of visible
+                // underlines.
                 if (primary_beg <= secondary_beg && secondary_end <= primary_end
                     && primary_end - primary_beg != secondary_end - secondary_beg) {
                     annotation_lines.front().set_styled_content(
@@ -1324,14 +1302,10 @@ private:
         // Compute the maximum depth. Note, if `multiline_annotations_` is not empty, what we're
         // actually calculating is the maximum depth plus 1, as explained in the documentation
         // comments for `depth_num_`.
-        depth_num_ = multiline_annotations_.empty()
-            ? 0
-            : std::ranges::max(
-                  multiline_annotations_
-                  | std::views::transform([](MultilineAnnotation const& annotation) {
-                        return annotation.depth;
-                    })
-              ) + 1;
+        depth_num_ = 0;
+        for (MultilineAnnotation const& annotation : multiline_annotations_) {
+            depth_num_ = std::max(depth_num_, annotation.depth);
+        }
 
         // Convert `MultilineAnnotation` into `Annotation`.
         for (MultilineAnnotation const& annotation : multiline_annotations_) {
@@ -1349,8 +1323,7 @@ private:
             //
             // For multi-line annotations we have `annotation.beg.line != annotation.end.line`, so
             // here we can safely add 1 here.
-            for (unsigned const line :
-                 std::views::iota(annotation.beg.line + 1, annotation.end.line)) {
+            for (unsigned line = annotation.beg.line + 1; line != annotation.end.line; ++line) {
                 lines_[line].annotations.push_back(Annotation::from_multiline_body(annotation));
             }
         }
@@ -1440,8 +1413,9 @@ private:
         //     x | |      x4)
         //       | |________^ label a
         //       |            label b
-        std::ranges::sort(
-            multiline_annotations_,
+        std::sort(
+            multiline_annotations_.begin(),
+            multiline_annotations_.end(),
             [](MultilineAnnotation const& lhs, MultilineAnnotation const& rhs) {
                 return std::tie(lhs.beg.line, rhs.end.line, lhs.beg.col, lhs.end.col)
                     < std::tie(rhs.beg.line, lhs.end.line, rhs.beg.col, rhs.end.col);
@@ -1450,25 +1424,27 @@ private:
 
         /// Represents the vertices of the interval graph.
         struct Vertex {
+            using AnnotationIterator = std::vector<MultilineAnnotation>::iterator;
             /// All multi-line annotations bound to the current vertex. They will have the same
-            /// depth.
-            std::span<MultilineAnnotation> annotation_range;
+            /// depth. This iterator pair represents the range of the associated annotations.
+            std::pair<AnnotationIterator, AnnotationIterator> associated_annotations;
             std::vector<Vertex*> neighbors;
             /// The depth value associated with the current vertex plus 1. If `depth` is 0, it
             /// indicates no depth has been assigned yet.
             unsigned depth = 0;
 
             Vertex() = default;
-            explicit Vertex(std::span<MultilineAnnotation> range) : annotation_range(range) { }
+            explicit Vertex(AnnotationIterator begin, AnnotationIterator end) :
+                associated_annotations(begin, end) { }
 
             /// Determines whether the intervals represented by two `Vertex` overlap.
             auto overlap(Vertex const& other) const -> bool {
                 // We assume that the `annotation_range` in both vertices is non-empty, and that all
                 // elements in an `annotation_range` of a `Vertex` have the same line range.
-                unsigned const self_line_beg = annotation_range.front().beg.line;
-                unsigned const self_line_end = annotation_range.front().end.line;
-                unsigned const other_line_beg = other.annotation_range.front().beg.line;
-                unsigned const other_line_end = other.annotation_range.front().end.line;
+                unsigned const self_line_beg = associated_annotations.first->beg.line;
+                unsigned const self_line_end = associated_annotations.first->end.line;
+                unsigned const other_line_beg = other.associated_annotations.first->beg.line;
+                unsigned const other_line_end = other.associated_annotations.first->end.line;
 
                 // Note that for line numbers, the interval (e.g., [`self_line_beg`,
                 // `self_line_end`]) is inclusive on both ends.
@@ -1485,7 +1461,7 @@ private:
         for (auto iter = multiline_annotations_.begin(); iter != multiline_annotations_.end();) {
             // `end_iter` points to the first annotation that does not have the same range as the
             // element pointed to by `iter`.
-            auto const end_iter = std::ranges::find_if_not(
+            auto const end_iter = std::find_if_not(
                 iter,
                 multiline_annotations_.end(),
                 [&](MultilineAnnotation const& span) {
@@ -1494,7 +1470,7 @@ private:
             );
 
             // Bind the range formed by `iter` and `end_iter` to a vertex.
-            interval_graph.emplace_back(std::span(iter, end_iter));
+            interval_graph.emplace_back(iter, end_iter);
 
             iter = end_iter;
         }
@@ -1502,12 +1478,12 @@ private:
         // Build neighbor relationships between `Vertex` instances: we need to add an edge for each
         // pair of overlapping intervals.
         for (auto cur_iter = interval_graph.begin(); cur_iter != interval_graph.end(); ++cur_iter) {
-            for (auto neighbor_iter = std::ranges::next(cur_iter);
-                 neighbor_iter != interval_graph.end();
-                 ++neighbor_iter) {
+            for (auto neighbor_iter = std::next(cur_iter); neighbor_iter != interval_graph.end();
+                 ++neighbor_iter)  //
+            {
                 if (cur_iter->overlap(*neighbor_iter)) {
-                    cur_iter->neighbors.push_back(std::to_address(neighbor_iter));
-                    neighbor_iter->neighbors.push_back(std::to_address(cur_iter));
+                    cur_iter->neighbors.push_back(&*neighbor_iter);
+                    neighbor_iter->neighbors.push_back(&*cur_iter);
                 } else {
                     // Since we have sorted `multiline_annotations`, overlapping intervals are
                     // contiguous.
@@ -1528,16 +1504,19 @@ private:
             // Find the first unused depth and assign it to `vertex`. Note that we need to ignore
             // the first element of `depth_bucket` because we need to ignore all vertices that have
             // not been assigned a depth.
-            auto const first_unused = std::ranges::find(depth_bucket | std::views::drop(1), 0);
-            vertex.depth =
-                static_cast<unsigned>(std::ranges::distance(depth_bucket.begin(), first_unused));
+            auto const first_unused =
+                std::find(std::next(depth_bucket.begin()), depth_bucket.end(), 0);
+            vertex.depth = static_cast<unsigned>(std::distance(depth_bucket.begin(), first_unused));
         }
 
         // Convert `Vertex`'s `depth` to the depths assigned to each multi-line annotation.
         for (Vertex const& vertex : interval_graph) {
-            for (MultilineAnnotation& annotation : vertex.annotation_range) {
+            for (auto iter = vertex.associated_annotations.first;
+                 iter != vertex.associated_annotations.second;
+                 ++iter)  //
+            {
                 // Since `vertex.depth` starts from 1, we need to subtract 1 additionally.
-                annotation.depth = vertex.depth - 1;
+                iter->depth = vertex.depth - 1;
             }
         }
     }
@@ -1554,7 +1533,7 @@ private:
         // However, since inserting elements does not invalidate any iterators of `std::map`, we can
         // safely use the original iterators after inserting elements. Moreover, since we always
         // insert elements forward, this ensures that we do not access elements we just inserted.
-        for (auto prev_iter = lines_.begin(), cur_iter = std::ranges::next(prev_iter);
+        for (auto prev_iter = lines_.begin(), cur_iter = std::next(prev_iter);
              cur_iter != lines_.end();
              prev_iter = cur_iter++) {
             unsigned const prev_line_no = prev_iter->first;
@@ -1568,14 +1547,9 @@ private:
                 }
             } else {
                 // Fully display unannotated lines.
-                // clang-format off
-                auto rng = std::views::iota(prev_line_no + 1, cur_line_no)
-                    | std::views::transform([](unsigned line) {
-                          return std::make_pair(line, AnnotatedLine(/*omitted=*/false));
-                      })
-                    | std::views::common;
-                // clang-format on
-                lines_.insert(std::ranges::begin(rng), std::ranges::end(rng));
+                for (unsigned line = prev_line_no + 1; line != cur_line_no; ++line) {
+                    lines_.emplace(line, AnnotatedLine(/*omitted=*/false));
+                }
             }
         }
     }
@@ -1615,18 +1589,15 @@ private:
                 // remaining number of lines does not exceed `max_multiline_annotation_line_num`.
                 //
                 // We make the first line to be folded omitted, and remove the others.
-                auto const folded_range = std::views::iota(
-                    line_beg + max_multiline_annotation_line_num / 2,
-                    line_beg + max_multiline_annotation_line_num / 2 + folded_lines_num
-                );
+                unsigned const first_folded_line = line_beg + max_multiline_annotation_line_num / 2;
+                lines_[first_folded_line].omitted = true;
 
-                lines_[folded_range.front()].omitted = true;
-                for (unsigned const line : folded_range | std::views::drop(1)) {
+                for (unsigned i = 1; i != folded_lines_num; ++i) {
                     // Note that we are modifying `lines_` here, and this function will be called in
                     // the loop below, where we iterate over `lines_`. However, this is safe because
                     // deleting elements from a `std::map` does not invalidate other iterators, and
                     // we are not deleting the element currently being accessed in the loop.
-                    lines_.erase(line);
+                    lines_.erase(first_folded_line + i);
                 }
             }
         };
@@ -1640,12 +1611,14 @@ private:
             // (lines without annotations should be handled in `handle_unannotated_lines`), and all
             // annotations must be of type `Annotation::MultilineBody`.
             if (annotated_line.annotations.empty()
-                || std::ranges::any_of(
-                    annotated_line.annotations,
+                || std::any_of(
+                    annotated_line.annotations.begin(),
+                    annotated_line.annotations.end(),
                     [](Annotation const& annotation) {
                         return annotation.type != Annotation::MultilineBody;
                     }
-                )) {
+                ))  //
+            {
                 continue;
             }
 
@@ -1701,7 +1674,8 @@ private:
             // calculate the display width of the source line simultaneously.
             col_display.emplace(static_cast<unsigned>(annotated_line.source_line.size()), 0u);
 
-            for (unsigned display_width = 0, chunk_begin = 0; auto& [byte, display] : col_display) {
+            unsigned display_width = 0, chunk_begin = 0;
+            for (auto& [byte, display] : col_display) {
                 std::string const normalized_source_chunk = normalize_source(
                     annotated_line.source_line.substr(chunk_begin, byte - chunk_begin),
                     display_tab_width
@@ -1804,23 +1778,26 @@ private:
 
         // Provides a hasher for `Annotation`. We do not specialize `std::hash<>` outside the class
         // because here we only deal with part of the `Annotation` members.
-        auto const annotation_hasher = [](Annotation const& annotation) {
-            std::size_t seed = 0;
-            seed = hash_combine(seed, annotation.col_beg.display);
-            seed = hash_combine(seed, annotation.col_end.display);
-            seed = hash_combine(seed, annotation.type);
-            return seed;
+        struct AnnotationHasher {
+            auto operator()(Annotation const& annotation) const -> std::size_t {
+                std::size_t seed = 0;
+                seed = hash_combine(seed, annotation.col_beg.display);
+                seed = hash_combine(seed, annotation.col_end.display);
+                seed = hash_combine(seed, annotation.type);
+                return seed;
+            }
         };
 
         // Provides a comparator for `Annotation`. We do not overload `operator==` for `Annotation`
         // because we only deal with part of the `Annotation` members.
-        auto const annotation_eq = [](Annotation const& lhs, Annotation const& rhs) {
-            return std::tie(lhs.col_beg.display, lhs.col_end.display, lhs.type)
-                == std::tie(rhs.col_beg.display, rhs.col_end.display, rhs.type);
+        struct AnnotationEq {
+            auto operator()(Annotation const& lhs, Annotation const& rhs) const -> bool {
+                return std::tie(lhs.col_beg.display, lhs.col_end.display, lhs.type)
+                    == std::tie(rhs.col_beg.display, rhs.col_end.display, rhs.type);
+            }
         };
 
-        std::unordered_set<Annotation, decltype(annotation_hasher), decltype(annotation_eq)>
-            merged_annotations;
+        std::unordered_set<Annotation, AnnotationHasher, AnnotationEq> merged_annotations;
 
         for (Annotation& annotation : annotations) {
             auto const [target, inserted] = merged_annotations.insert(std::move(annotation));
@@ -1841,10 +1818,8 @@ private:
                     // NOLINTEND(bugprone-use-after-move)
                 );
 
-                old_annotation.label_display_width = std::ranges::max(
-                    old_annotation.label_display_width,
-                    annotation.label_display_width
-                );
+                old_annotation.label_display_width =
+                    std::max(old_annotation.label_display_width, annotation.label_display_width);
 
                 // We prioritize displaying primary annotations: if either of the annotations is
                 // primary, the merged annotation should also be primary.
@@ -1969,8 +1944,7 @@ private:
                 // `other`'s underline range might be empty (e.g., when `other.type` is
                 // `MultilineBody`): if `other_beg` and `other_end` are equal, this `if` statement
                 // will not be executed, thus not affecting the result.
-                if (std::ranges::max(label_beg, other_beg)
-                    < std::ranges::min(label_end, other_end)) {
+                if (std::max(label_beg, other_beg) < std::min(label_end, other_end)) {
                     self.label_line_position = 1;
                     break;
                 }
@@ -2012,7 +1986,7 @@ private:
 
             if (self.label_line_position == 0) {
                 first_line_height =
-                    std::ranges::max(first_line_height, static_cast<unsigned>(self.label.size()));
+                    std::max(first_line_height, static_cast<unsigned>(self.label.size()));
             }
         }
 
@@ -2206,7 +2180,7 @@ private:
                 Vertex& other_root = other.root();
 
                 other_root.parent = &self_root;
-                self_root.rightmost = std::ranges::max(self_root.rightmost, other_root.rightmost);
+                self_root.rightmost = std::max(self_root.rightmost, other_root.rightmost);
             }
 
             /// Queries the `rightmost` of the set to which this node belongs. Essentially, this
@@ -2277,7 +2251,7 @@ private:
                 //     ^    ^^^^ line1
                 //     |         line2
                 // ____|                <-- A new line must be added
-                unsigned const singleline_beg = std::ranges::max(first_line_height, 2u);
+                unsigned const singleline_beg = std::max(first_line_height, 2u);
                 unsigned const multiline_beg = first_line_height + 1;
 
                 for (Annotation& annotation : annotations) {
@@ -2321,7 +2295,7 @@ private:
                     for (auto const& [neighbor, weight] : cur_vertex->neighbors) {
                         // Determine the line on which the neighbor's label will be based on the
                         // last line of current node's label and the edge's weight.
-                        neighbor->label_line_position() = std::ranges::max(
+                        neighbor->label_line_position() = std::max(
                             neighbor->label_line_position(),
                             cur_label_end_position + weight
                         );
@@ -2390,57 +2364,60 @@ private:
                         if (self_beg == other_beg) {
                             // Determine whether an edge from `self` to `other` should be added
                             // according to a series of conditions described in Rule 2 .
-                            bool const should_add_edge = [&] {
-                                if (self_end != other_end) {
-                                    // Condition (1): The shorter label is placed above.
-                                    return self_end < other_end;
-                                } else if (self.annotation->type != other.annotation->type) {
-                                    // Conditions (2) and (3): Order as Single-line annotation,
-                                    // Multiline tail, and Multiline head. We assign an integer
-                                    // value to each type of annotation for sorting purposes.
-                                    auto const compute_type_value =
-                                        [](Annotation::AnnotationType annotation_type) {
-                                            switch (annotation_type) {
-                                            case Annotation::SingleLine:
-                                                return 0;
-                                            case Annotation::MultilineTail:
-                                                return 1;
-                                            case Annotation::MultilineHead:
-                                                return 2;
-                                            default:
-                                                detail::unreachable();
-                                            }
-                                        };
+                            bool const should_add_edge =
+                                [&, &self_end = self_end, &other_end = other_end]() {
+                                    if (self_end != other_end) {
+                                        // Condition (1): The shorter label is placed above.
+                                        return self_end < other_end;
+                                    } else if (self.annotation->type != other.annotation->type) {
+                                        // Conditions (2) and (3): Order as Single-line annotation,
+                                        // Multiline tail, and Multiline head. We assign an integer
+                                        // value to each type of annotation for sorting purposes.
+                                        auto const compute_type_value =
+                                            [](Annotation::AnnotationType annotation_type) {
+                                                switch (annotation_type) {
+                                                case Annotation::SingleLine:
+                                                    return 0;
+                                                case Annotation::MultilineTail:
+                                                    return 1;
+                                                case Annotation::MultilineHead:
+                                                    return 2;
+                                                default:
+                                                    detail::unreachable();
+                                                }
+                                            };
 
-                                    return compute_type_value(self.annotation->type)
-                                        < compute_type_value(other.annotation->type);
-                                } else {
-                                    switch (self.annotation->type) {
-                                    case Annotation::SingleLine: {
-                                        auto const [self_underline_beg, self_underline_end] =
-                                            self.annotation->underline_display_range();
-                                        auto const [other_underline_beg, other_underline_end] =
-                                            other.annotation->underline_display_range();
-                                        // Condition (4): For single-line annotations, the one with
-                                        // the shorter underline is placed above.
-                                        return self_underline_end - self_underline_beg
-                                            < other_underline_end - other_underline_beg;
+                                        return compute_type_value(self.annotation->type)
+                                            < compute_type_value(other.annotation->type);
+                                    } else {
+                                        switch (self.annotation->type) {
+                                        case Annotation::SingleLine: {
+                                            auto const [self_underline_beg, self_underline_end] =
+                                                self.annotation->underline_display_range();
+                                            auto const [other_underline_beg, other_underline_end] =
+                                                other.annotation->underline_display_range();
+                                            // Condition (4): For single-line annotations, the one
+                                            // with the shorter underline is placed above.
+                                            return self_underline_end - self_underline_beg
+                                                < other_underline_end - other_underline_beg;
+                                        }
+                                        case Annotation::MultilineHead:
+                                            // Condition (5): For the heads of multiline
+                                            // annotations, the one with the smaller `depth` is
+                                            // placed above.
+                                            return self.annotation->col_beg.byte
+                                                < other.annotation->col_beg.byte;
+                                        case Annotation::MultilineTail:
+                                            // Condition (6): For the tails of multiline
+                                            // annotations, the one with the greater `depth` is
+                                            // placed above.
+                                            return other.annotation->col_beg.byte
+                                                < self.annotation->col_beg.byte;
+                                        default:
+                                            detail::unreachable();
+                                        };
                                     }
-                                    case Annotation::MultilineHead:
-                                        // Condition (5): For the heads of multiline annotations,
-                                        // the one with the smaller `depth` is placed above.
-                                        return self.annotation->col_beg.byte
-                                            < other.annotation->col_beg.byte;
-                                    case Annotation::MultilineTail:
-                                        // Condition (6): For the tails of multiline annotations,
-                                        // the one with the greater `depth` is placed above.
-                                        return other.annotation->col_beg.byte
-                                            < self.annotation->col_beg.byte;
-                                    default:
-                                        detail::unreachable();
-                                    };
-                                }
-                            }();
+                                }();
 
                             if (should_add_edge) {
                                 add_edge(self, other, /*weight=*/0);
@@ -2512,7 +2489,9 @@ void HumanRenderer::render_annotated_sources(
     std::vector<AnnotatedSource>& sources,
     unsigned max_line_num_len
 ) const {
-    for (unsigned source_idx = 0; AnnotatedSource & source : sources) {
+    for (unsigned source_idx = 0; source_idx != sources.size(); ++source_idx) {
+        AnnotatedSource& source = sources[source_idx];
+
         if (source.primary_spans().empty() && source.secondary_spans().empty()) {
             continue;
         }
@@ -2522,8 +2501,6 @@ void HumanRenderer::render_annotated_sources(
 
         render_target.append_newline();
         render_annotated_source(render_target, source, *this, max_line_num_len);
-
-        ++source_idx;
     }
 }
 }  // namespace ants

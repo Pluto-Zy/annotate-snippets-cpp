@@ -18,13 +18,12 @@ TEST(AnnotatedSourceTest, LineOffset) {
         }                                                                                          \
     }
 
-#define TEST_CASE(...)                                                                             \
-    { TEST_CASE_IMPL(__VA_ARGS__) }
+#define TEST_CASE(...) { TEST_CASE_IMPL(__VA_ARGS__) }
 
 #define TEST_CASE_CHECK_CACHE(...)                                                                 \
     {                                                                                              \
         TEST_CASE_IMPL(__VA_ARGS__)                                                                \
-        std::remove_cvref_t<decltype(as.line_offsets_cache())> expected_cache;                     \
+        std::decay_t<decltype(as.line_offsets_cache())> expected_cache;                            \
         for (std::size_t i = 0; i != line_starts.size(); ++i) {                                    \
             expected_cache.emplace(i, line_starts[i]);                                             \
         }                                                                                          \

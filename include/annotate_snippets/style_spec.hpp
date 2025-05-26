@@ -2,10 +2,10 @@
 #define ANNOTATE_SNIPPETS_STYLE_SPEC_HPP
 
 #include <climits>
-#include <concepts>
 #include <cstdint>
 #include <ostream>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 
 namespace ants {
@@ -146,7 +146,14 @@ public:
         return *this;
     }
 
-    friend constexpr auto operator==(StyleSpec const&, StyleSpec const&) -> bool = default;
+    friend constexpr auto operator==(StyleSpec const& lhs, StyleSpec const& rhs) -> bool {
+        return std::tie(lhs.text_styles_, lhs.foreground_, lhs.background_)
+            == std::tie(rhs.text_styles_, rhs.foreground_, rhs.background_);
+    }
+
+    friend constexpr auto operator!=(StyleSpec const& lhs, StyleSpec const& rhs) -> bool {
+        return !(lhs == rhs);
+    }
 
 private:
     /// Specified text styles (`TextStyle` and its combinations). We avoid using `std::bitset`
@@ -179,6 +186,18 @@ constexpr auto operator~(StyleSpec::TextStyle style) -> StyleSpec::TextStyle {
     return static_cast<StyleSpec::TextStyle>(~static_cast<std::uint8_t>(style));
 }
 
+template <class StyleSheet, class Level, class = void>
+struct is_style_sheet_impl : std::false_type { };  // NOLINT(readability-identifier-naming)
+
+template <class StyleSheet, class Level>
+struct is_style_sheet_impl<
+    StyleSheet,
+    Level,
+    std::void_t<std::invoke_result_t<StyleSheet const&, Style const&, Level const&>>> :
+    std::is_convertible<
+        std::invoke_result_t<StyleSheet const&, Style const&, Level const&>,
+        StyleSpec> { };
+
 /// Checks if a callable type `StyleSheet` can be used as a style sheet for `HumanRenderer`.
 ///
 /// The style sheet must be a callable object that accepts `Style` and `Level` as parameters. It
@@ -190,9 +209,7 @@ constexpr auto operator~(StyleSpec::TextStyle style) -> StyleSpec::TextStyle {
 ///
 /// TODO: Add an example demonstrating the use of a style sheet.
 template <class StyleSheet, class Level>
-concept style_sheet_for =
-    std::copy_constructible<StyleSheet> && std::regular_invocable<StyleSheet, Style const&, Level>
-    && std::convertible_to<std::invoke_result_t<StyleSheet, Style const&, Level>, StyleSpec>;
+constexpr bool is_style_sheet = is_style_sheet_impl<StyleSheet, Level>::value;
 
 /// Represents a style sheet that renders every `Style` in plain text format.
 struct PlainTextStyleSheet {
