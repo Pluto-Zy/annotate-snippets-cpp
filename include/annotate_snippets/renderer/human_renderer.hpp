@@ -275,7 +275,7 @@ private:
     template <class Level>
     auto compute_max_line_num_len(Diag<Level> const& diag) const -> unsigned {
         if (ui_testing) {
-            return anonymized_line_num.size();
+            return static_cast<unsigned>(anonymized_line_num.size());
         }
 
         auto const source_trans = [&](AnnotatedSource const& source) {

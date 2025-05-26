@@ -24,7 +24,7 @@ TEST(AnnotatedSourceTest, LineOffset) {
     {                                                                                              \
         TEST_CASE_IMPL(__VA_ARGS__)                                                                \
         std::decay_t<decltype(as.line_offsets_cache())> expected_cache;                            \
-        for (std::size_t i = 0; i != line_starts.size(); ++i) {                                    \
+        for (unsigned i = 0; i != static_cast<unsigned>(line_starts.size()); ++i) {                \
             expected_cache.emplace(i, line_starts[i]);                                             \
         }                                                                                          \
         EXPECT_EQ(expected_cache, as.line_offsets_cache());                                        \
