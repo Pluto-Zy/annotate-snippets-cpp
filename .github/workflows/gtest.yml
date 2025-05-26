@@ -13,19 +13,10 @@ jobs:
         os: [ ubuntu-22.04 ]
         compiler: [ g++-7, g++-9, g++-11, g++-13, g++-15, clang++-5, clang++-10, clang++-15, clang++-20 ]
         build_type: [ Debug, Release ]
-        libcxx: [ false ]
         include:
           - compiler: clang++-5
-            build_type: Debug
-            libcxx: true
-          - compiler: clang++-5
-            build_type: Release
             libcxx: true
           - compiler: clang++-15
-            build_type: Debug
-            libcxx: true
-          - compiler: clang++-15
-            build_type: Release
             libcxx: true
 
     name: Build and Test on Ubuntu
@@ -42,10 +33,16 @@ jobs:
           chmod +x llvm.sh
           VERSION=$(echo ${{ matrix.compiler }} | cut -d'-' -f2) # Extracts the version number
           sudo ./llvm.sh $VERSION
+          echo "CC=clang-$VERSION" >> $GITHUB_ENV
+          echo "CXX=clang++-$VERSION" >> $GITHUB_ENV
 
+      - name: Install libc++
+        if: ${{ matrix.libcxx }}
+        run: |
           # Install libc++ if requested
           if [ "${{ matrix.libcxx }}" == "true" ]; then
             sudo apt-get install -y libc++-$VERSION-dev libc++abi-$VERSION-dev
+            echo "CXXFLAGS=-stdlib=libc++" >> $GITHUB_ENV
           fi
 
       - name: Install GCC
@@ -57,16 +54,9 @@ jobs:
 
       - name: Configure CMake
         run: |
-            CMAKE_FLAGS=""
-            if [ "${{ matrix.libcxx }}" == "true" ]; then
-              CMAKE_FLAGS="-DCMAKE_CXX_FLAGS=-stdlib=libc++"
-            fi
-
             cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
                   -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
-                  -DCMAKE_CXX_COMPILER=${{matrix.compiler}} \
-                  -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON \
-                  $CMAKE_FLAGS
+                  -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
 
       - name: Build
         run: |
