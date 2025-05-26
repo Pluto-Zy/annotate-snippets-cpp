@@ -112,9 +112,10 @@ jobs:
     strategy:
       matrix:
         build_type: [ Debug, Release ]
+        operating_system: [ windows-2019, windows-2022, windows-2025 ]
 
     name: Build and Test on Windows
-    runs-on: [ windows-2019, windows-2022, windows-2025 ]
+    runs-on: ${{matrix.operating_system}}
     steps:
       - uses: actions/checkout@v4
 
