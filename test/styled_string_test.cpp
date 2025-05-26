@@ -14,13 +14,13 @@ TEST(StyledStringTest, AppendContent) {
         auto str = ants::StyledString::inferred("Hello");
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { { { .content = "Hello", .style = ants::Style::Auto } } })
+            (LineParts { { { /*content=*/"Hello", /*style=*/ants::Style::Auto } } })
         );
         str.append("World", ants::Style::Auto);
         EXPECT_EQ(str.content(), "HelloWorld");
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { { { .content = "HelloWorld", .style = ants::Style::Auto } } })
+            (LineParts { { { /*content=*/"HelloWorld", /*style=*/ants::Style::Auto } } })
         );
         str.append(".", ants::Style::Default);
         EXPECT_EQ(str.content(), "HelloWorld.");
@@ -28,8 +28,8 @@ TEST(StyledStringTest, AppendContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "HelloWorld", .style = ants::Style::Auto },
-                { .content = ".", .style = ants::Style::Default },
+                { /*content=*/"HelloWorld", /*style=*/ants::Style::Auto },
+                { /*content=*/".", /*style=*/ants::Style::Default },
             } })
         );
         // clang-format on
@@ -41,7 +41,7 @@ TEST(StyledStringTest, AppendContent) {
         EXPECT_EQ(str.content(), "Hello");
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { { { .content = "Hello", .style = ants::Style::Auto } } })
+            (LineParts { { { /*content=*/"Hello", /*style=*/ants::Style::Auto } } })
         );
     }
 
@@ -65,7 +65,7 @@ TEST(StyledStringTest, AppendContent) {
         EXPECT_EQ(str.content(), "Hello");
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { { { .content = "Hello", .style = ants::Style::Addition } } })
+            (LineParts { { { /*content=*/"Hello", /*style=*/ants::Style::Addition } } })
         );
     }
 
@@ -77,9 +77,9 @@ TEST(StyledStringTest, AppendContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "He", .style = ants::Style::Auto },
-                { .content = "llo", .style = ants::Style::Default },
-                { .content = "World", .style = ants::Style::Auto },
+                { /*content=*/"He", /*style=*/ants::Style::Auto },
+                { /*content=*/"llo", /*style=*/ants::Style::Default },
+                { /*content=*/"World", /*style=*/ants::Style::Auto },
             } })
         );
         // clang-format on
@@ -93,8 +93,8 @@ TEST(StyledStringTest, AppendContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "He", .style = ants::Style::Auto },
-                { .content = "lloWorld", .style = ants::Style::Default },
+                { /*content=*/"He", /*style=*/ants::Style::Auto },
+                { /*content=*/"lloWorld", /*style=*/ants::Style::Default },
             } })
         );
         // clang-format on
@@ -108,8 +108,8 @@ TEST(StyledStringTest, AppendContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "Hello", .style = ants::Style::Default },
-                { .content = "World", .style = ants::Style::Highlight },
+                { /*content=*/"Hello", /*style=*/ants::Style::Default },
+                { /*content=*/"World", /*style=*/ants::Style::Highlight },
             } })
         );
         // clang-format on
@@ -121,7 +121,7 @@ TEST(StyledStringTest, AppendContent) {
         EXPECT_EQ(str.content(), "HelloWorld");
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { { { .content = "HelloWorld", .style = ants::Style::Default } } })
+            (LineParts { { { /*content=*/"HelloWorld", /*style=*/ants::Style::Default } } })
         );
     }
 
@@ -133,8 +133,8 @@ TEST(StyledStringTest, AppendContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "Hello", .style = ants::Style::Auto },
-                { .content = "World", .style = ants::Style::Highlight },
+                { /*content=*/"Hello", /*style=*/ants::Style::Auto },
+                { /*content=*/"World", /*style=*/ants::Style::Highlight },
             } })
         );
         // clang-format on
@@ -149,9 +149,9 @@ TEST(StyledStringTest, AppendContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "Hel", .style = ants::Style::Auto },
-                { .content = "loW", .style = ants::Style::Default },
-                { .content = "orld", .style = ants::Style::Highlight },
+                { /*content=*/"Hel", /*style=*/ants::Style::Auto },
+                { /*content=*/"loW", /*style=*/ants::Style::Default },
+                { /*content=*/"orld", /*style=*/ants::Style::Highlight },
             } })
         );
         // clang-format on
@@ -168,8 +168,8 @@ TEST(StyledStringTest, AppendParts) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "Hello", .style = ants::Style::Auto },
-                { .content = "World", .style = ants::Style::Addition },
+                { /*content=*/"Hello", /*style=*/ants::Style::Auto },
+                { /*content=*/"World", /*style=*/ants::Style::Addition },
             } })
         );
         // clang-format on
@@ -182,7 +182,7 @@ TEST(StyledStringTest, AppendParts) {
         EXPECT_EQ(str.content(), "HelloWorld");
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { { { .content = "HelloWorld", .style = ants::Style::Auto } } })
+            (LineParts { { { /*content=*/"HelloWorld", /*style=*/ants::Style::Auto } } })
         );
     }
 
@@ -196,8 +196,8 @@ TEST(StyledStringTest, AppendParts) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "HelloWor", .style = ants::Style::Auto },
-                { .content = "ld", .style = ants::Style::Default },
+                { /*content=*/"HelloWor", /*style=*/ants::Style::Auto },
+                { /*content=*/"ld", /*style=*/ants::Style::Default },
             } })
         );
         // clang-format on
@@ -205,22 +205,23 @@ TEST(StyledStringTest, AppendParts) {
 
     {
         auto str = ants::StyledString::inferred("Hello");
-        auto const append = ants::StyledString::inferred("World")
-                                .with_style(ants::Style::custom(1), 0)
-                                .with_style(ants::Style::custom(2), 1)
-                                .with_style(ants::Style::custom(3), 3)
-                                .with_style(ants::Style::custom(4), 4);
+        auto const append =  //
+            ants::StyledString::inferred("World")
+                .with_style(ants::Style::custom(1), 0)
+                .with_style(ants::Style::custom(2), 1)
+                .with_style(ants::Style::custom(3), 3)
+                .with_style(ants::Style::custom(4), 4);
         str.append(append.styled_line_parts().front());
         EXPECT_EQ(str.content(), "HelloWorld");
         // clang-format off
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "Hello", .style = ants::Style::Auto },
-                { .content = "W", .style = ants::Style::custom(1) },
-                { .content = "or", .style = ants::Style::custom(2) },
-                { .content = "l", .style = ants::Style::custom(3) },
-                { .content = "d", .style = ants::Style::custom(4) },
+                { /*content=*/"Hello", /*style=*/ants::Style::Auto },
+                { /*content=*/"W", /*style=*/ants::Style::custom(1) },
+                { /*content=*/"or", /*style=*/ants::Style::custom(2) },
+                { /*content=*/"l", /*style=*/ants::Style::custom(3) },
+                { /*content=*/"d", /*style=*/ants::Style::custom(4) },
             } })
         );
         // clang-format on
@@ -228,11 +229,12 @@ TEST(StyledStringTest, AppendParts) {
 
     {
         auto str = ants::StyledString::inferred("");
-        auto const append = ants::StyledString::inferred("Hello")
-                                .with_style(ants::Style::custom(1), 0)
-                                .with_style(ants::Style::custom(2), 1)
-                                .with_style(ants::Style::custom(3), 3)
-                                .with_style(ants::Style::custom(4), 4);
+        auto const append =  //
+            ants::StyledString::inferred("Hello")
+                .with_style(ants::Style::custom(1), 0)
+                .with_style(ants::Style::custom(2), 1)
+                .with_style(ants::Style::custom(3), 3)
+                .with_style(ants::Style::custom(4), 4);
         str.append(append.styled_line_parts().front());
         EXPECT_EQ(str.content(), "Hello");
         EXPECT_EQ(str.styled_line_parts(), append.styled_line_parts());
@@ -248,9 +250,9 @@ TEST(StyledStringTest, AppendParts) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "Hello", .style = ants::Style::Auto },
-                { .content = "Wor", .style = ants::Style::Highlight },
-                { .content = "ld", .style = ants::Style::Default },
+                { /*content=*/"Hello", /*style=*/ants::Style::Auto },
+                { /*content=*/"Wor", /*style=*/ants::Style::Highlight },
+                { /*content=*/"ld", /*style=*/ants::Style::Default },
             } })
         );
         // clang-format on
@@ -266,8 +268,8 @@ TEST(StyledStringTest, AppendParts) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "HelloWor", .style = ants::Style::Default },
-                { .content = "ld", .style = ants::Style::Highlight },
+                { /*content=*/"HelloWor", /*style=*/ants::Style::Default },
+                { /*content=*/"ld", /*style=*/ants::Style::Highlight },
             } })
         );
         // clang-format on
@@ -281,7 +283,7 @@ TEST(StyledStringTest, AppendNewline) {
         EXPECT_EQ(str.content(), "Hello\n");
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { { { .content = "Hello", .style = ants::Style::Auto } } })
+            (LineParts { { { /*content=*/"Hello", /*style=*/ants::Style::Auto } } })
         );
 
         str.append_newline();
@@ -289,10 +291,10 @@ TEST(StyledStringTest, AppendNewline) {
         // clang-format off
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { {
-                { { .content = "Hello", .style = ants::Style::Auto } },
-                { { .content = "", .style = ants::Style::Auto } },
-            } })
+            (LineParts {
+                { { /*content=*/"Hello", /*style=*/ants::Style::Auto } },
+                { { /*content=*/"", /*style=*/ants::Style::Auto } },
+            })
         );
         // clang-format on
 
@@ -301,11 +303,11 @@ TEST(StyledStringTest, AppendNewline) {
         // clang-format off
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { {
-                { { .content = "Hello", .style = ants::Style::Auto } },
-                { { .content = "", .style = ants::Style::Auto } },
-                { { .content = "World", .style = ants::Style::Default } },
-            } })
+            (LineParts {
+                { { /*content=*/"Hello", /*style=*/ants::Style::Auto } },
+                { { /*content=*/"", /*style=*/ants::Style::Auto } },
+                { { /*content=*/"World", /*style=*/ants::Style::Default } },
+            })
         );
         // clang-format on
     }
@@ -316,7 +318,7 @@ TEST(StyledStringTest, AppendNewline) {
         EXPECT_EQ(str.content(), "\n");
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { { { .content = "", .style = ants::Style::Auto } } })
+            (LineParts { { { /*content=*/"", /*style=*/ants::Style::Auto } } })
         );
 
         str.append("Hello", ants::Style::Default);
@@ -324,10 +326,10 @@ TEST(StyledStringTest, AppendNewline) {
         // clang-format off
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { {
-                { { .content = "", .style = ants::Style::Auto } },
-                { { .content = "Hello", .style = ants::Style::Default } },
-            } })
+            (LineParts {
+                { { /*content=*/"", /*style=*/ants::Style::Auto } },
+                { { /*content=*/"Hello", /*style=*/ants::Style::Default } },
+            })
         );
         // clang-format on
 
@@ -336,11 +338,11 @@ TEST(StyledStringTest, AppendNewline) {
         // clang-format off
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { {
-                { { .content = "", .style = ants::Style::Auto } },
-                { { .content = "Hello", .style = ants::Style::Default } },
-                { { .content = "World", .style = ants::Style::Highlight } },
-            } })
+            (LineParts {
+                { { /*content=*/"", /*style=*/ants::Style::Auto } },
+                { { /*content=*/"Hello", /*style=*/ants::Style::Default } },
+                { { /*content=*/"World", /*style=*/ants::Style::Highlight } },
+            })
         );
         // clang-format on
     }
@@ -357,14 +359,14 @@ TEST(StyledStringTest, AppendSpace) {
         EXPECT_EQ(str.content(), "   ");
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { { { .content = "   ", .style = ants::Style::Default } } })
+            (LineParts { { { /*content=*/"   ", /*style=*/ants::Style::Default } } })
         );
 
         str.append_spaces(2);
         EXPECT_EQ(str.content(), "     ");
         EXPECT_EQ(
             str.styled_line_parts(),
-            (LineParts { { { .content = "     ", .style = ants::Style::Default } } })
+            (LineParts { { { /*content=*/"     ", /*style=*/ants::Style::Default } } })
         );
 
         str.append("Hello", ants::Style::Auto);
@@ -374,9 +376,9 @@ TEST(StyledStringTest, AppendSpace) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "     ", .style = ants::Style::Default },
-                { .content = "Hello", .style = ants::Style::Auto },
-                { .content = "   ", .style = ants::Style::Default },
+                { /*content=*/"     ", /*style=*/ants::Style::Default },
+                { /*content=*/"Hello", /*style=*/ants::Style::Auto },
+                { /*content=*/"   ", /*style=*/ants::Style::Default },
             } })
         );
         // clang-format on
@@ -390,8 +392,8 @@ TEST(StyledStringTest, AppendSpace) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "Hello", .style = ants::Style::Auto },
-                { .content = " ", .style = ants::Style::Default },
+                { /*content=*/"Hello", /*style=*/ants::Style::Auto },
+                { /*content=*/" ", /*style=*/ants::Style::Default },
             } })
         );
         // clang-format on
@@ -402,8 +404,8 @@ TEST(StyledStringTest, AppendSpace) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "Hello", .style = ants::Style::Auto },
-                { .content = " World", .style = ants::Style::Default },
+                { /*content=*/"Hello", /*style=*/ants::Style::Auto },
+                { /*content=*/" World", /*style=*/ants::Style::Default },
             } })
         );
         // clang-format on
@@ -419,8 +421,8 @@ TEST(StyledStringTest, SetStyledContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "     ", .style = ants::Style::Default },
-                { .content = "Hello", .style = ants::Style::Auto },
+                { /*content=*/"     ", /*style=*/ants::Style::Default },
+                { /*content=*/"Hello", /*style=*/ants::Style::Auto },
             } })
         );
         // clang-format on
@@ -431,9 +433,9 @@ TEST(StyledStringTest, SetStyledContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "     ", .style = ants::Style::Default },
-                { .content = "He", .style = ants::Style::Auto },
-                { .content = "World", .style = ants::Style::Highlight },
+                { /*content=*/"     ", /*style=*/ants::Style::Default },
+                { /*content=*/"He", /*style=*/ants::Style::Auto },
+                { /*content=*/"World", /*style=*/ants::Style::Highlight },
             } })
         );
         // clang-format on
@@ -444,11 +446,11 @@ TEST(StyledStringTest, SetStyledContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "     ", .style = ants::Style::Default },
-                { .content = "He", .style = ants::Style::Auto },
-                { .content = "World", .style = ants::Style::Highlight },
-                { .content = "   ", .style = ants::Style::Default },
-                { .content = "C++", .style = ants::Style::custom(2) },
+                { /*content=*/"     ", /*style=*/ants::Style::Default },
+                { /*content=*/"He", /*style=*/ants::Style::Auto },
+                { /*content=*/"World", /*style=*/ants::Style::Highlight },
+                { /*content=*/"   ", /*style=*/ants::Style::Default },
+                { /*content=*/"C++", /*style=*/ants::Style::custom(2) },
             } })
         );
         // clang-format on
@@ -459,10 +461,10 @@ TEST(StyledStringTest, SetStyledContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "   ", .style = ants::Style::Default },
-                { .content = "Helloorld", .style = ants::Style::Highlight },
-                { .content = "   ", .style = ants::Style::Default },
-                { .content = "C++", .style = ants::Style::custom(2) },
+                { /*content=*/"   ", /*style=*/ants::Style::Default },
+                { /*content=*/"Helloorld", /*style=*/ants::Style::Highlight },
+                { /*content=*/"   ", /*style=*/ants::Style::Default },
+                { /*content=*/"C++", /*style=*/ants::Style::custom(2) },
             } })
         );
         // clang-format on
@@ -473,10 +475,10 @@ TEST(StyledStringTest, SetStyledContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "   ", .style = ants::Style::Default },
-                { .content = "Helloorld", .style = ants::Style::Highlight },
-                { .content = "   ", .style = ants::Style::Default },
-                { .content = "C++", .style = ants::Style::custom(2) },
+                { /*content=*/"   ", /*style=*/ants::Style::Default },
+                { /*content=*/"Helloorld", /*style=*/ants::Style::Highlight },
+                { /*content=*/"   ", /*style=*/ants::Style::Default },
+                { /*content=*/"C++", /*style=*/ants::Style::custom(2) },
             } })
         );
         // clang-format on
@@ -484,8 +486,9 @@ TEST(StyledStringTest, SetStyledContent) {
 
     {
         auto str = ants::StyledString();
-        auto const content = ants::StyledString::styled("Hello World", ants::Style::Highlight)
-                                 .with_style(ants::Style::Auto, 6);
+        auto const content =  //
+            ants::StyledString::styled("Hello World", ants::Style::Highlight)
+                .with_style(ants::Style::Auto, 6);
 
         str.set_styled_content(5, content.styled_line_parts().front());
         EXPECT_EQ(str.content(), "     Hello World");
@@ -493,9 +496,9 @@ TEST(StyledStringTest, SetStyledContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "     ", .style = ants::Style::Default },
-                { .content = "Hello ", .style = ants::Style::Highlight },
-                { .content = "World", .style = ants::Style::Auto },
+                { /*content=*/"     ", /*style=*/ants::Style::Default },
+                { /*content=*/"Hello ", /*style=*/ants::Style::Highlight },
+                { /*content=*/"World", /*style=*/ants::Style::Auto },
             } })
         );
         // clang-format on
@@ -506,11 +509,11 @@ TEST(StyledStringTest, SetStyledContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "     ", .style = ants::Style::Default },
-                { .content = "Hello ", .style = ants::Style::Highlight },
-                { .content = "W", .style = ants::Style::Auto },
-                { .content = "Hello ", .style = ants::Style::Highlight },
-                { .content = "World", .style = ants::Style::Auto },
+                { /*content=*/"     ", /*style=*/ants::Style::Default },
+                { /*content=*/"Hello ", /*style=*/ants::Style::Highlight },
+                { /*content=*/"W", /*style=*/ants::Style::Auto },
+                { /*content=*/"Hello ", /*style=*/ants::Style::Highlight },
+                { /*content=*/"World", /*style=*/ants::Style::Auto },
             } })
         );
         // clang-format on
@@ -521,11 +524,11 @@ TEST(StyledStringTest, SetStyledContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "  ", .style = ants::Style::Default },
-                { .content = "Hello ", .style = ants::Style::Highlight },
-                { .content = "World", .style = ants::Style::Auto },
-                { .content = "ello ", .style = ants::Style::Highlight },
-                { .content = "World", .style = ants::Style::Auto },
+                { /*content=*/"  ", /*style=*/ants::Style::Default },
+                { /*content=*/"Hello ", /*style=*/ants::Style::Highlight },
+                { /*content=*/"World", /*style=*/ants::Style::Auto },
+                { /*content=*/"ello ", /*style=*/ants::Style::Highlight },
+                { /*content=*/"World", /*style=*/ants::Style::Auto },
             } })
         );
         // clang-format on
@@ -536,11 +539,11 @@ TEST(StyledStringTest, SetStyledContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "  ", .style = ants::Style::Default },
-                { .content = "Hello ", .style = ants::Style::Highlight },
-                { .content = "World", .style = ants::Style::Addition },
-                { .content = "ello ", .style = ants::Style::Highlight },
-                { .content = "World", .style = ants::Style::Auto },
+                { /*content=*/"  ", /*style=*/ants::Style::Default },
+                { /*content=*/"Hello ", /*style=*/ants::Style::Highlight },
+                { /*content=*/"World", /*style=*/ants::Style::Addition },
+                { /*content=*/"ello ", /*style=*/ants::Style::Highlight },
+                { /*content=*/"World", /*style=*/ants::Style::Auto },
             } })
         );
         // clang-format on
@@ -551,11 +554,11 @@ TEST(StyledStringTest, SetStyledContent) {
         EXPECT_EQ(
             str.styled_line_parts(),
             (LineParts { {
-                { .content = "  ", .style = ants::Style::Default },
-                { .content = "Hello ", .style = ants::Style::Highlight },
-                { .content = "World", .style = ants::Style::Addition },
-                { .content = "ello ", .style = ants::Style::Highlight },
-                { .content = "World", .style = ants::Style::Auto },
+                { /*content=*/"  ", /*style=*/ants::Style::Default },
+                { /*content=*/"Hello ", /*style=*/ants::Style::Highlight },
+                { /*content=*/"World", /*style=*/ants::Style::Addition },
+                { /*content=*/"ello ", /*style=*/ants::Style::Highlight },
+                { /*content=*/"World", /*style=*/ants::Style::Auto },
             } })
         );
         // clang-format on
@@ -565,45 +568,45 @@ TEST(StyledStringTest, SetStyledContent) {
 TEST(StyledStringTest, Constructor) {
     {
         auto const str = ants::StyledString::inferred("abc");
-        LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
+        LineParts const expected { { { /*content=*/"abc", /*style=*/ants::Style::Auto } } };
         EXPECT_EQ(str.styled_line_parts(), expected);
     }
 
     {
         auto const str = ants::StyledString::plain("abc");
-        LineParts const expected { { { .content = "abc", .style = ants::Style::Default } } };
+        LineParts const expected { { { /*content=*/"abc", /*style=*/ants::Style::Default } } };
         EXPECT_EQ(str.styled_line_parts(), expected);
     }
 
     {
         auto const str = ants::StyledString::styled("abc", ants::Style::Highlight);
-        LineParts const expected { { { .content = "abc", .style = ants::Style::Highlight } } };
+        LineParts const expected { { { /*content=*/"abc", /*style=*/ants::Style::Highlight } } };
         EXPECT_EQ(str.styled_line_parts(), expected);
     }
 
     {
         auto const str = ants::StyledString::styled("abc", ants::Style::custom(1));
         auto const lines = str.styled_line_parts();
-        LineParts const expected { { { .content = "abc", .style = ants::Style::custom(1) } } };
+        LineParts const expected { { { /*content=*/"abc", /*style=*/ants::Style::custom(1) } } };
         EXPECT_EQ(lines, expected);
         EXPECT_NE(lines.front().front().style, ants::Style::Default);
     }
 
     {
         ants::StyledString const str = "abc";
-        LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
+        LineParts const expected { { { /*content=*/"abc", /*style=*/ants::Style::Auto } } };
         EXPECT_EQ(str.styled_line_parts(), expected);
     }
 
     {
         ants::StyledString const str("abc");
-        LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
+        LineParts const expected { { { /*content=*/"abc", /*style=*/ants::Style::Auto } } };
         EXPECT_EQ(str.styled_line_parts(), expected);
     }
 
     {
         ants::StyledString const str(std::string_view("abc"));
-        LineParts const expected { { { .content = "abc", .style = ants::Style::Auto } } };
+        LineParts const expected { { { /*content=*/"abc", /*style=*/ants::Style::Auto } } };
         EXPECT_EQ(str.styled_line_parts(), expected);
     }
 }

@@ -274,7 +274,8 @@ TEST(HumanRendererSinglelineAnnotationTest, LabelPosition) {
     std::cout << result << '\n';
 })";
 
-    ants::HumanRenderer renderer { .label_position = ants::HumanRenderer::Right };
+    ants::HumanRenderer renderer;
+    renderer.label_position = ants::HumanRenderer::Right;
 
     EXPECT_EQ(
         renderer
