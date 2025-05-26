@@ -11,10 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-22.04 ]
-        compiler: [
-          g++-7, g++-9, g++-11, g++-13, g++-15,
-          clang++-5, clang++-10, clang++-15, clang++-20
-        ]
+        compiler: [ g++-7, g++-9, g++-11, g++-13, g++-15, clang++-5, clang++-10, clang++-15, clang++-20 ]
         build_type: [ Debug, Release ]
         libcxx: [ false ]
         include:
@@ -112,10 +109,10 @@ jobs:
     strategy:
       matrix:
         build_type: [ Debug, Release ]
-        operating_system: [ windows-2019, windows-2022, windows-2025 ]
+        os: [ windows-2019, windows-2022, windows-2025 ]
 
     name: Build and Test on Windows
-    runs-on: ${{matrix.operating_system}}
+    runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@v4
 
