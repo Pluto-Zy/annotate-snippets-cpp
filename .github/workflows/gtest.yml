@@ -11,12 +11,14 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-22.04 ]
-        compiler: [ g++-7, g++-9, g++-11, g++-13, g++-15, clang++-5, clang++-10, clang++-15, clang++-20 ]
+        compiler: [ g++-9, g++-11, g++-13, g++-15, clang++-11, clang++-15, clang++-20 ]
         build_type: [ Debug, Release ]
         include:
-          - compiler: clang++-5
+          - compiler: clang++-11
             libcxx: true
           - compiler: clang++-15
+            libcxx: true
+          - compiler: clang++-20
             libcxx: true
 
     name: Build and Test on Ubuntu
@@ -28,21 +30,17 @@ jobs:
         if: startsWith(matrix.compiler, 'clang++')
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget lsb-release software-properties-common gnupg
+          sudo apt-get install -y wget lsb-release software-properties-common
+          VERSION=$(echo ${{ matrix.compiler }} | cut -d'-' -f2) # Extracts the version number
 
-          VERSION=$(echo ${{ matrix.compiler }} | cut -d'-' -f2)
-
-          if [ "$VERSION" -lt 9 ]; then
-            echo "Installing legacy Clang version $VERSION from llvm.org"
-            echo "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-$VERSION main" | sudo tee /etc/apt/sources.list.d/llvm.list
-            wget -O - http://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-            sudo apt-get update
-            sudo apt-get install -y clang-$VERSION lldb-$VERSION lld-$VERSION
-          else
-            echo "Installing modern Clang version $VERSION via llvm.sh"
+          if ! apt-cache show clang-$VERSION > /dev/null 2>&1; then
+            echo "clang-$VERSION not available via apt, using llvm.sh"
             wget https://apt.llvm.org/llvm.sh
             chmod +x llvm.sh
             sudo ./llvm.sh $VERSION
+          else
+            echo "Installing clang-$VERSION via apt"
+            sudo apt-get install -y clang-$VERSION
           fi
 
           echo "CC=clang-$VERSION" >> $GITHUB_ENV
@@ -53,6 +51,7 @@ jobs:
         run: |
           # Install libc++ if requested
           if [ "${{ matrix.libcxx }}" == "true" ]; then
+            VERSION=$(echo ${{ matrix.compiler }} | cut -d'-' -f2) # Extracts the version number
             sudo apt-get install -y libc++-$VERSION-dev libc++abi-$VERSION-dev
             echo "CXXFLAGS=-stdlib=libc++" >> $GITHUB_ENV
           fi
