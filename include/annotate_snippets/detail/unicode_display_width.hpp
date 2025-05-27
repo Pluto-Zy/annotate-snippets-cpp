@@ -90,7 +90,7 @@ inline void for_each_codepoint(std::string_view s, F f) {
     }
     if (auto num_chars_left = s.data() + s.size() - p) {
         char buf[2 * block_size - 1] = {};
-        std::ranges::copy(p, p + num_chars_left, buf);
+        std::copy(p, p + num_chars_left, buf);
         const char* buf_ptr = buf;
         do {
             auto end = decode(buf_ptr, p);

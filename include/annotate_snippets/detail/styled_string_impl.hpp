@@ -18,7 +18,19 @@ struct StyledStringViewPart {
     std::string_view content;
     Style style;
 
-    auto operator==(StyledStringViewPart const& other) const -> bool = default;
+    friend auto operator==(  //
+        StyledStringViewPart const& lhs,
+        StyledStringViewPart const& rhs
+    ) -> bool {
+        return lhs.content == rhs.content && lhs.style == rhs.style;
+    }
+
+    friend auto operator!=(  //
+        StyledStringViewPart const& lhs,
+        StyledStringViewPart const& rhs
+    ) -> bool {
+        return !(lhs == rhs);
+    }
 };
 
 namespace detail {
@@ -45,7 +57,7 @@ protected:
 
     // clang-format off
     StyledStringImpl() : styled_parts_ {
-        { .start_index = 0, .style {} }, { .start_index = 0, .style {} }
+        { /*start_index=*/0, /*style=*/ {} }, { /*start_index=*/0, /*style=*/ {} }
     } { }
     // clang-format on
 
@@ -54,8 +66,8 @@ protected:
     // clang-format off
     explicit StyledStringImpl(std::size_t content_size, Style content_style) : styled_parts_ { {
         // We need at least two `StyledPart` elements to specify the style of the whole string.
-        { .start_index = 0, .style = content_style },
-        { .start_index = content_size, .style {} },
+        { /*start_index=*/ 0, /*style=*/ content_style },
+        { /*start_index=*/ content_size, /*style=*/ {} },
     } } { }
     // clang-format on
 

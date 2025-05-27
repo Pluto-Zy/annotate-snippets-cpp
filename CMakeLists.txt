@@ -31,9 +31,6 @@ option(
 )
 option(INSTALL_ANNOTATE_SNIPPETS "Enable installation of the annotate-snippets project." ON)
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 include(AddRang)
 
 add_library(annotate_snippets
@@ -56,6 +53,7 @@ target_compile_options(annotate_snippets
 )
 
 target_link_libraries(annotate_snippets PRIVATE rang::rang)
+target_compile_features(annotate_snippets PUBLIC cxx_std_17)
 
 add_library(ants::annotate_snippets ALIAS annotate_snippets)
 

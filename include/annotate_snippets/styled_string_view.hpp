@@ -4,9 +4,9 @@
 #include "annotate_snippets/detail/styled_string_impl.hpp"
 #include "annotate_snippets/style.hpp"
 
-#include <concepts>
 #include <cstddef>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -30,8 +30,9 @@ public:
     /// Constructs a `StyledStringView` where its content is built from `args...`, as if constructed
     /// with `std::string_view(std::forward<Args>(args)...)`, and the style of the whole string will
     /// be inferred from the context in which the string is used (i.e. the `Style::Auto` style).
-    template <class... Args>
-        requires std::constructible_from<std::string_view, Args...>
+    template <
+        class... Args,
+        std::enable_if_t<std::is_constructible_v<std::string_view, Args...>, int> = 0>
     StyledStringView(Args&&... args) :
         StyledStringView(std::string_view(std::forward<Args>(args)...)) { }
 
@@ -79,8 +80,8 @@ public:
     void set_style(Style style) {
         // clang-format off
         std::vector<StyledPart> {
-            { .start_index = 0, .style = style },
-            { .start_index = content_.size(), .style {} },
+            { /*start_index=*/ 0, style },
+            { /*start_index=*/ content_.size(), /*style=*/ {} },
         }
             .swap(styled_parts_);
         // clang-format on

@@ -3,14 +3,13 @@
 
 #include "annotate_snippets/detail/styled_string_impl.hpp"
 #include "annotate_snippets/style.hpp"
-#include "annotate_snippets/styled_string_view.hpp"
 
 #include <algorithm>
-#include <concepts>
 #include <cstddef>
 #include <iterator>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -35,8 +34,9 @@ public:
     /// Constructs a `StyledString` where its content is built from `args...`, as if constructed
     /// with `std::string(std::forward<Args>(args)...)`, and the style of the whole string will be
     /// inferred from the context in which the string is used (i.e. the `Style::Auto` style).
-    template <class... Args>
-        requires std::constructible_from<std::string, Args...>
+    template <
+        class... Args,
+        std::enable_if_t<std::is_constructible_v<std::string, Args...>, int> = 0>
     StyledString(Args&&... args) : StyledString(std::string(std::forward<Args>(args)...)) { }
 
     /// Constructs a `StyledString` whose content is `content` and the style of the whole string is
@@ -95,8 +95,8 @@ public:
     void set_style(Style style) {
         // clang-format off
         std::vector<StyledPart> {
-            { .start_index = 0, .style = style },
-            { .start_index = content_.size(), .style {} },
+            { /*start_index=*/ 0, /*style=*/ style },
+            { /*start_index=*/ content_.size(), /*style=*/ {} },
         }
             .swap(styled_parts_);
         // clang-format on
@@ -217,8 +217,12 @@ public:
         //
         // However, due to a GCC bug (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100366), g++
         // incorrectly assumes that this code causes overlapping `__builtin_memcpy` calls.
-        // Therefore, we use `std::ranges::copy()` instead.
-        std::ranges::copy(content, std::ranges::next(content_.begin(), static_cast<int>(position)));
+        // Therefore, we use `std::copy()` instead.
+        std::copy(
+            content.begin(),
+            content.end(),
+            std::next(content_.begin(), static_cast<int>(position))
+        );
         set_style(style, position, position + content.size());
     }
 
@@ -326,7 +330,7 @@ private:
 
         styled_parts_.back().style = style;
         // Insert a new style part.
-        styled_parts_.push_back(StyledPart { .start_index = content_.size(), .style {} });
+        styled_parts_.push_back(StyledPart { /*start_index=*/content_.size(), /*style=*/ {} });
     }
 };
 }  // namespace ants

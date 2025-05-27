@@ -15,8 +15,8 @@
 #include <cstdint>
 #include <functional>
 #include <ostream>
-#include <ranges>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace ants {
@@ -155,7 +155,10 @@ public:
 
     /// Renders `diag` to the output stream associated with `out`. The rendering style is specified
     /// by `style_sheet`.
-    template <class Level, style_sheet_for<Level> StyleSheet = PlainTextStyleSheet>
+    template <
+        class Level,
+        class StyleSheet = PlainTextStyleSheet,
+        std::enable_if_t<is_style_sheet<StyleSheet, Level>, int> = 0>
     void render_diag(std::ostream& out, Diag<Level> diag, StyleSheet style_sheet = {}) const {
         unsigned const max_line_num_len = compute_max_line_num_len(diag);
 
@@ -184,12 +187,15 @@ public:
     ) const {
         // If all associated source codes of the current diagnostic entry have no annotations, or if
         // it is not associated with any source code (if `diag_entry.associated_source()` is empty,
-        // then `std::ranges::any_of` returns `false`), then the current diagnostic entry does not
-        // need to render annotations.
-        bool const has_annotation =
-            std::ranges::any_of(diag_entry.associated_sources(), [](AnnotatedSource const& source) {
+        // then `std::any_of` returns `false`), then the current diagnostic entry does not need to
+        // render annotations.
+        bool const has_annotation = std::any_of(
+            diag_entry.associated_sources().begin(),
+            diag_entry.associated_sources().end(),
+            [](AnnotatedSource const& source) {
                 return !source.primary_spans().empty() || !source.secondary_spans().empty();
-            });
+            }
+        );
 
         // Indentation for the title message. Usually, this indentation is 0. When `short_message`
         // is `true`, since we need to render the file name and line/column numbers before the title
@@ -205,7 +211,7 @@ public:
 
         render_title_message(
             render_target,
-            detail::level_display_string(diag_entry.level()),
+            detail::level_title(diag_entry.level()),
             diag_entry.error_code(),
             diag_entry.diag_message(),
             max_line_num_len,
@@ -226,7 +232,11 @@ public:
 
     /// Renders a single `DiagEntry` to the output stream associated with `out`. The rendering style
     /// is specified by `style_sheet`.
-    template <class Level, class Derived, style_sheet_for<Level> StyleSheet>
+    template <
+        class Level,
+        class Derived,
+        class StyleSheet,
+        std::enable_if_t<is_style_sheet<StyleSheet, Level>, int> = 0>
     void render_diag_entry(
         std::ostream& out,
         detail::DiagEntryImpl<Level, Derived>& diag_entry,
@@ -265,42 +275,28 @@ private:
     template <class Level>
     auto compute_max_line_num_len(Diag<Level> const& diag) const -> unsigned {
         if (ui_testing) {
-            return anonymized_line_num.size();
+            return static_cast<unsigned>(anonymized_line_num.size());
         }
 
         auto const source_trans = [&](AnnotatedSource const& source) {
             return compute_max_line_num_len(source);
         };
 
-        unsigned const primary = [&] {
-            if (diag.primary_diag_entry().associated_sources().empty()) {
-                return 0u;
-            } else {
-                return std::ranges::max(
-                    diag.primary_diag_entry().associated_sources()
-                    | std::views::transform(source_trans)
-                );
-            }
-        }();
+        unsigned result = 0;
 
-        unsigned const secondary = [&] {
-            if (std::ranges::all_of(
-                    diag.secondary_diag_entries(),
-                    [](DiagEntry<Level> const& entry) { return entry.associated_sources().empty(); }
-                )) {
-                return 0u;
-            } else {
-                return std::ranges::max(
-                    diag.secondary_diag_entries()
-                    | std::views::transform([](DiagEntry<Level> const& entry) -> auto& {
-                          return entry.associated_sources();
-                      })
-                    | std::views::join | std::views::transform(source_trans)
-                );
-            }
-        }();
+        // Primary diag entry.
+        for (AnnotatedSource const& source : diag.primary_diag_entry().associated_sources()) {
+            result = std::max(result, compute_max_line_num_len(source));
+        }
 
-        return std::ranges::max(primary, secondary);
+        // Secondary diag entries.
+        for (DiagEntry<Level> const& entry : diag.secondary_diag_entries()) {
+            for (AnnotatedSource const& source : entry.associated_sources()) {
+                result = std::max(result, compute_max_line_num_len(source));
+            }
+        }
+
+        return result;
     }
 
     /// Renders the title message into `render_target`. For example:

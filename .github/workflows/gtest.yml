@@ -11,8 +11,16 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-22.04 ]
-        compiler: [ g++-11, g++-12, g++-13, clang++-16, clang++-17, clang++-18 ]
+        compiler: [ g++-9, g++-11, g++-13, clang++-11, clang++-15, clang++-20 ]
         build_type: [ Debug, Release ]
+        libcxx: [ false, true ]
+        exclude:
+          - compiler: g++-9
+            libcxx: true
+          - compiler: g++-11
+            libcxx: true
+          - compiler: g++-13
+            libcxx: true
 
     name: Build and Test on Ubuntu
     runs-on: ${{matrix.os}}
@@ -24,12 +32,30 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y wget lsb-release software-properties-common
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
           VERSION=$(echo ${{ matrix.compiler }} | cut -d'-' -f2) # Extracts the version number
-          sudo ./llvm.sh $VERSION
+
+          if ! apt-cache show clang-$VERSION > /dev/null 2>&1; then
+            echo "clang-$VERSION not available via apt, using llvm.sh"
+            wget https://apt.llvm.org/llvm.sh
+            chmod +x llvm.sh
+            sudo ./llvm.sh $VERSION
+          else
+            echo "Installing clang-$VERSION via apt"
+            sudo apt-get install -y clang-$VERSION
+          fi
+
           echo "CC=clang-$VERSION" >> $GITHUB_ENV
           echo "CXX=clang++-$VERSION" >> $GITHUB_ENV
+
+      - name: Install libc++
+        if: ${{ matrix.libcxx }}
+        run: |
+          # Install libc++ if requested
+          if [ "${{ matrix.libcxx }}" == "true" ]; then
+            VERSION=$(echo ${{ matrix.compiler }} | cut -d'-' -f2) # Extracts the version number
+            sudo apt-get install -y libc++-$VERSION-dev libc++abi-$VERSION-dev
+            echo "CXXFLAGS=-stdlib=libc++" >> $GITHUB_ENV
+          fi
 
       - name: Install GCC
         if: startsWith(matrix.compiler, 'g++')
@@ -43,6 +69,7 @@ jobs:
         run: |
             cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
                   -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                  -DCMAKE_CXX_STANDARD=17 \
                   -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
 
       - name: Build
@@ -58,7 +85,7 @@ jobs:
   build-macos:
     strategy:
       matrix:
-        os: [ macos-14 ]
+        os: [ macos-13, macos-14, macos-15 ]
         build_type: [ Debug, Release ]
 
     name: Build and Test on MacOS
@@ -66,18 +93,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          # FIXME: Use `latest` instead of `latest-stable` to use the latest beta version of Xcode,
-          # as Xcode 16 is a beta version on `macos-14`.
-          # TODO: Change this to a fixed version of Xcode when the GitHub Actions environment is
-          # updated.
-          xcode-version: latest
-
       - name: Configure CMake
         run: |
             cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
                   -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                  -DCMAKE_CXX_STANDARD=17 \
                   -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
 
       - name: Build
@@ -94,9 +114,10 @@ jobs:
     strategy:
       matrix:
         build_type: [ Debug, Release ]
+        os: [ windows-2019, windows-2022, windows-2025 ]
 
     name: Build and Test on Windows
-    runs-on: windows-latest
+    runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@v4
 
@@ -104,6 +125,7 @@ jobs:
         run: |
             cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
                   -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                  -DCMAKE_CXX_STANDARD=17 \
                   -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
 
       - name: Build

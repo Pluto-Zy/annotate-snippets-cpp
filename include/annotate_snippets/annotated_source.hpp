@@ -3,10 +3,9 @@
 
 #include "annotate_snippets/styled_string_view.hpp"
 
-#include <concepts>
 #include <cstddef>
+#include <iterator>
 #include <map>
-#include <ranges>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -20,7 +19,9 @@ struct SourceLocation {
     /// The (0-indexed) column number of the location.
     unsigned col;
 
-    auto operator==(SourceLocation const& other) const -> bool = default;
+    friend constexpr auto operator==(SourceLocation lhs, SourceLocation rhs) -> bool {
+        return lhs.line == rhs.line && lhs.col == rhs.col;
+    }
 };
 
 /// Represents a single annotation span in the source code, with an optional label. When rendering
@@ -106,17 +107,9 @@ public:
         line_offsets_[line] = offset;
     }
 
-    template <std::ranges::input_range Range>
-        requires std::convertible_to<
-            std::ranges::range_reference_t<Range>,
-            std::map<unsigned, std::size_t>::value_type>
-    void set_line_offsets(Range&& r) {
-#ifdef __cpp_lib_containers_ranges
-        line_offsets_.insert_range(std::forward<Range>(r));
-#else
-        auto&& cr = r | std::views::common;
-        line_offsets_.insert(std::ranges::begin(cr), std::ranges::end(cr));
-#endif
+    template <class Iter>
+    void set_line_offsets(Iter begin, Iter end) {
+        line_offsets_.insert(std::make_move_iterator(begin), std::make_move_iterator(end));
     }
 
     /// Returns the line and column number of the byte at offset `byte_offset` in the source code.
@@ -153,9 +146,9 @@ public:
         StyledStringView label
     ) {
         primary_spans_.push_back(LabeledSpan {
-            .beg = beg,
-            .end = end,
-            .label = std::move(label),
+            /*beg=*/beg,
+            /*end=*/end,
+            /*label=*/std::move(label),
         });
     }
 
@@ -292,9 +285,9 @@ public:
         StyledStringView label
     ) {
         secondary_spans_.push_back(LabeledSpan {
-            .beg = beg,
-            .end = end,
-            .label = std::move(label),
+            /*beg=*/beg,
+            /*end=*/end,
+            /*label=*/std::move(label),
         });
     }
 
@@ -562,16 +555,16 @@ private:
     /// is used to quickly find a line of source code when rendering diagnostic information.
     ///
     /// There are several ways to modify the cache:
-    ///     1. The user can explicitly specify the offset of the starting byte of a line by
-    ///     `set_line_offset()` and `set_line_offsets()`, because this information is usually known
-    ///     in other compilation stages, for example, the source code may have been scanned to
-    ///     obtain the offset of each line. Explicitly setting the cache will improve the
-    ///     performance of rendering diagnostic information, because the renderer does not need to
-    ///     find the starting position of a line separately.
-    ///     2. If there is no information about the first byte position of a line, when the code of
-    ///     this line needs to be accessed, the information will be calculated and cached. We try to
-    ///     iterate over as few bytes as possible to find the information we need, for example we
-    ///     might process a new line from an already calculated line.
+    /// 1. The user can explicitly specify the offset of the starting byte of a line by
+    ///    `set_line_offset()` and `set_line_offsets()`, because this information is usually known
+    ///    in other compilation stages, for example, the source code may have been scanned to obtain
+    ///    the offset of each line. Explicitly setting the cache will improve the performance of
+    ///    rendering diagnostic information, because the renderer does not need to find the starting
+    ///    position of a line separately.
+    /// 2. If there is no information about the first byte position of a line, when the code of this
+    ///    line needs to be accessed, the information will be calculated and cached. We try to
+    ///    iterate over as few bytes as possible to find the information we need, for example we
+    ///    might process a new line from an already calculated line.
     std::map<unsigned, std::size_t> line_offsets_;
     /// The (1-indexed) line number of the first line in the source code. The line numbers of
     /// subsequent lines will be calculated based on this, which allows us to provide a portion of

@@ -9,7 +9,7 @@ enum class Level {
     Help,
 };
 
-inline auto display_string(Level level) -> char const* {
+inline auto title(Level level) -> char const* {
     switch (level) {
     case Level::Fatal:
         return "fatal error";

@@ -1,46 +1,51 @@
 #ifndef ANNOTATE_SNIPPETS_DETAIL_DIAG_LEVEL_HPP
 #define ANNOTATE_SNIPPETS_DETAIL_DIAG_LEVEL_HPP
 
-#include <concepts>
 #include <string_view>
+#include <type_traits>
 
 namespace ants::detail {
-/// Checks if LevelTy has a member display_string() function to convert it to a corresponding
-/// displayable string.
-template <class LevelTy>
-concept has_member_display_string = requires(LevelTy&& level) {
-    { level.display_string() } -> std::convertible_to<std::string_view>;
-};
+/// Checks if `LevelTy` has a member `title()` function to convert it to a corresponding displayable
+/// string.
+template <class LevelTy, class = void>
+struct has_member_title : std::false_type { };  // NOLINT(readability-identifier-naming)
 
-/// Checks whether the display_string() function can be found via ADL with an argument of type
-/// LevelTy, which is used to convert the level to its corresponding displayable string.
 template <class LevelTy>
-concept has_adl_display_string = !has_member_display_string<LevelTy> && requires(LevelTy&& level) {
-    { display_string(level) } -> std::convertible_to<std::string_view>;
-};
+struct has_member_title<LevelTy, std::void_t<decltype(std::declval<LevelTy const&>().title())>> :
+    std::is_convertible<decltype(std::declval<LevelTy const&>().title()), std::string_view> { };
 
-struct DisplayStringImpl {
-    template <has_member_display_string LevelTy>
-    constexpr auto operator()(LevelTy&& level) const -> std::string_view {
-        return static_cast<std::string_view>(level.display_string());
+/// Checks whether the `title()` function can be found via ADL with an argument of type `LevelTy`,
+/// which is used to convert the level to its corresponding displayable string.
+template <class LevelTy, class = void>
+struct has_adl_title : std::false_type { };  // NOLINT(readability-identifier-naming)
+
+template <class LevelTy>
+struct has_adl_title<LevelTy, std::void_t<decltype(title(std::declval<LevelTy const&>()))>> :
+    std::is_convertible<decltype(title(std::declval<LevelTy const&>())), std::string_view> { };
+
+struct LevelTitleImpl {
+    template <class LevelTy, std::enable_if_t<has_member_title<LevelTy>::value, int> = 0>
+    constexpr auto operator()(LevelTy const& level) const -> std::string_view {
+        return static_cast<std::string_view>(level.title());
     }
 
-    template <has_adl_display_string LevelTy>
-    constexpr auto operator()(LevelTy&& level) const -> std::string_view {
-        return static_cast<std::string_view>(display_string(level));
+    template <
+        class LevelTy,
+        std::enable_if_t<
+            std::conjunction_v<has_adl_title<LevelTy>, std::negation<has_member_title<LevelTy>>>,
+            int> = 0>
+    constexpr auto operator()(LevelTy const& level) const -> std::string_view {
+        return static_cast<std::string_view>(title(level));
     }
-
-    void operator()(auto&&) const = delete;
 };
 
 /// A customization point object used to convert the level object to a string displayable on the
 /// screen.
-constexpr inline DisplayStringImpl level_display_string {};
+constexpr inline LevelTitleImpl level_title {};
 
-/// Checks whether type Ty can be used as the level type for diagnostic information.
+/// Checks whether type `Ty` can be used as the diagnostic level type for diagnostic information.
 template <class Ty>
-concept diagnostic_level =
-    std::regular<Ty> && requires(Ty&& level) { level_display_string(level); };
+constexpr bool is_diagnostic_level = std::disjunction_v<has_member_title<Ty>, has_adl_title<Ty>>;
 }  // namespace ants::detail
 
 #endif  // ANNOTATE_SNIPPETS_DETAIL_DIAG_LEVEL_HPP

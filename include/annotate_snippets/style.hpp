@@ -110,7 +110,13 @@ public:
         return is(PredefinedStyle::Auto);
     }
 
-    auto operator==(Style const& other) const -> bool = default;
+    friend constexpr auto operator==(Style lhs, Style rhs) -> bool {
+        return lhs.style_ == rhs.style_;
+    }
+
+    friend constexpr auto operator!=(Style lhs, Style rhs) -> bool {
+        return !(lhs == rhs);
+    }
 
     /// Create a custom style based on a user-specified style number. The user can also achieve the
     /// same effect through the constructor, but the member function can indicate the user's

@@ -135,7 +135,8 @@ TEST(HumanRendererTitleMessageTest, MultipleDiagEntries) {
 }
 
 TEST(HumanRendererTitleMessageTest, ShortMessage) {
-    ants::HumanRenderer const render { .short_message = true };
+    ants::HumanRenderer render;
+    render.short_message = true;
 
     EXPECT_EQ(
         render.render_diag(ants::Diag(Level::Error, ants::StyledStringView::inferred("message")))

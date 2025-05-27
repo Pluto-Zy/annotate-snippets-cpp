@@ -5,8 +5,8 @@
 #include "annotate_snippets/detail/diag/level.hpp"
 #include "annotate_snippets/styled_string_view.hpp"
 
-#include <concepts>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -15,8 +15,14 @@ namespace ants::detail {
 /// facilitate chainable calls that behave appropriately.
 ///
 /// For more information, refer to the documentation comments of `DiagEntry`.
-template <detail::diagnostic_level Level, class Derived>
+template <class Level, class Derived>
 class DiagEntryImpl {
+    static_assert(
+        is_diagnostic_level<Level>,
+        "The `Level` type cannot be used as a diagnostic level type, it must have a `title()` "
+        "member function or an `title()` function found via ADL."
+    );
+
 public:
     DiagEntryImpl() : level_() { }
 
@@ -102,8 +108,9 @@ public:
         associated_sources_.push_back(std::move(source));
     }
 
-    template <class... Args>
-        requires std::constructible_from<AnnotatedSource, Args...>
+    template <
+        class... Args,
+        std::enable_if_t<std::is_constructible_v<AnnotatedSource, Args...>, int> = 0>
     void add_source(Args&&... args) {
         associated_sources_.emplace_back(std::forward<Args>(args)...);
     }
@@ -113,8 +120,9 @@ public:
         return static_cast<Derived&>(*this);
     }
 
-    template <class... Args>
-        requires std::constructible_from<AnnotatedSource, Args...>
+    template <
+        class... Args,
+        std::enable_if_t<std::is_constructible_v<AnnotatedSource, Args...>, int> = 0>
     auto with_source(Args&&... args) & -> Derived& {
         add_source(std::forward<Args>(args)...);
         return static_cast<Derived&>(*this);
@@ -125,8 +133,9 @@ public:
         return static_cast<Derived&&>(*this);
     }
 
-    template <class... Args>
-        requires std::constructible_from<AnnotatedSource, Args...>
+    template <
+        class... Args,
+        std::enable_if_t<std::is_constructible_v<AnnotatedSource, Args...>, int> = 0>
     auto with_source(Args&&... args) && -> Derived&& {
         add_source(std::forward<Args>(args)...);
         return static_cast<Derived&&>(*this);
