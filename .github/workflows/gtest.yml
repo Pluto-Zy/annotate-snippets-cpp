@@ -11,14 +11,15 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-22.04 ]
-        compiler: [ g++-9, g++-11, g++-13, g++-15, clang++-11, clang++-15, clang++-20 ]
+        compiler: [ g++-9, g++-11, g++-13, clang++-11, clang++-15, clang++-20 ]
         build_type: [ Debug, Release ]
-        include:
-          - compiler: clang++-11
+        libcxx: [ false, true ]
+        exclude:
+          - compiler: g++-9
             libcxx: true
-          - compiler: clang++-15
+          - compiler: g++-11
             libcxx: true
-          - compiler: clang++-20
+          - compiler: g++-13
             libcxx: true
 
     name: Build and Test on Ubuntu
