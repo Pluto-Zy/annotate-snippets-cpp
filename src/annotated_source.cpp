@@ -88,7 +88,8 @@ auto compute_line_offset(
         : std::prev(closest_next_iter, 1);
 
     if (closest_next_iter != line_offset_cache.end()
-        && closest_prev_iter != line_offset_cache.end()) {
+        && closest_prev_iter != line_offset_cache.end())
+    {
         // If there are calculated lines before and after `target_line`, we traverse from the
         // closest one.
         if (closest_next_iter->first - target_line < target_line - closest_prev_iter->first) {
@@ -211,7 +212,8 @@ auto byte_offset_to_line(
         : std::prev(closest_next_iter, 1);
 
     if (closest_prev_iter != line_offset_cache.end()
-        && closest_next_iter != line_offset_cache.end()) {
+        && closest_next_iter != line_offset_cache.end())
+    {
         // If the lines before and after are adjacent, then we have already found the line
         // containing the target byte, so we return the result without modifying the cache.
         if (closest_prev_iter->first + 1 == closest_next_iter->first) {

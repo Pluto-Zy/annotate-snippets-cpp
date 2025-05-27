@@ -26,6 +26,8 @@ BinPackArguments: false
 BinPackParameters: false
 BitFieldColonSpacing: Both
 BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterControlStatement: MultiLine
 BreakBeforeBinaryOperators: NonAssignment
 BreakConstructorInitializers: AfterColon
 BreakInheritanceList: AfterColon

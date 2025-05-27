@@ -35,8 +35,12 @@ void StyleSpec::render_string(std::ostream& out, std::string_view content) const
         break;
 
     // setup foreground and background colors
-    switch (foreground_) { COLOR_SWITCH_BODY(fg) }
-    switch (background_) { COLOR_SWITCH_BODY(bg) }
+    switch (foreground_) {
+        COLOR_SWITCH_BODY(fg)
+    }
+    switch (background_) {
+        COLOR_SWITCH_BODY(bg)
+    }
 
     // clang-format off
 #define TEXT_STYLE_LIST                                                                            \
