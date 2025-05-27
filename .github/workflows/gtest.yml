@@ -69,6 +69,7 @@ jobs:
         run: |
             cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
                   -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                  -DCMAKE_CXX_STANDARD=17 \
                   -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
 
       - name: Build
@@ -96,6 +97,7 @@ jobs:
         run: |
             cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
                   -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                  -DCMAKE_CXX_STANDARD=17 \
                   -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
 
       - name: Build
@@ -123,6 +125,7 @@ jobs:
         run: |
             cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
                   -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                  -DCMAKE_CXX_STANDARD=17 \
                   -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
 
       - name: Build

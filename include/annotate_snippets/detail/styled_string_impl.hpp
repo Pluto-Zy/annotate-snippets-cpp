@@ -56,13 +56,11 @@ protected:
     std::vector<StyledPart> styled_parts_;
 
     // clang-format off
-    StyledStringImpl() :
-        styled_parts_ {
-            { /*start_index=*/0, /*style=*/ {} },
-            { /*start_index=*/0, /*style=*/ {} },
-        } { }
-
+    StyledStringImpl() : styled_parts_ {
+        { /*start_index=*/0, /*style=*/ {} }, { /*start_index=*/0, /*style=*/ {} }
+    } { }
     // clang-format on
+
     explicit StyledStringImpl(std::vector<StyledPart> parts) : styled_parts_(std::move(parts)) { }
 
     // clang-format off

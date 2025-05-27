@@ -1017,13 +1017,11 @@ private:
         // by the underlines of primary annotations and render them to the forefront. This ensures
         // we meet the second requirement.
         for (auto secondary_iter = annotations.begin(); secondary_iter != primary_annotations_begin;
-             ++secondary_iter)  //
-        {
+             ++secondary_iter) {
             auto const [secondary_beg, secondary_end] = secondary_iter->underline_display_range();
 
             for (auto primary_iter = primary_annotations_begin; primary_iter != annotations.end();
-                 ++primary_iter)  //
-            {
+                 ++primary_iter) {
                 auto const [primary_beg, primary_end] = primary_iter->underline_display_range();
 
                 // If the primary annotation completely covers the underline of the secondary
@@ -1441,8 +1439,8 @@ private:
 
             /// Determines whether the intervals represented by two `Vertex` overlap.
             auto overlap(Vertex const& other) const -> bool {
-                // We assume that the `annotation_range` in both vertices is non-empty, and that all
-                // elements in an `annotation_range` of a `Vertex` have the same line range.
+                // We assume that `associated_annotations` in both vertices is non-empty, and that
+                // all elements in `associated_annotations` of a `Vertex` have the same line range.
                 unsigned const self_line_beg = associated_annotations.first->beg.line;
                 unsigned const self_line_end = associated_annotations.first->end.line;
                 unsigned const other_line_beg = other.associated_annotations.first->beg.line;
@@ -1481,8 +1479,7 @@ private:
         // pair of overlapping intervals.
         for (auto cur_iter = interval_graph.begin(); cur_iter != interval_graph.end(); ++cur_iter) {
             for (auto neighbor_iter = std::next(cur_iter); neighbor_iter != interval_graph.end();
-                 ++neighbor_iter)  //
-            {
+                 ++neighbor_iter) {
                 if (cur_iter->overlap(*neighbor_iter)) {
                     cur_iter->neighbors.push_back(&*neighbor_iter);
                     neighbor_iter->neighbors.push_back(&*cur_iter);
@@ -1515,8 +1512,7 @@ private:
         for (Vertex const& vertex : interval_graph) {
             for (auto iter = vertex.associated_annotations.first;
                  iter != vertex.associated_annotations.second;
-                 ++iter)  //
-            {
+                 ++iter) {
                 // Since `vertex.depth` starts from 1, we need to subtract 1 additionally.
                 iter->depth = vertex.depth - 1;
             }
@@ -1619,8 +1615,7 @@ private:
                     [](Annotation const& annotation) {
                         return annotation.type != Annotation::MultilineBody;
                     }
-                ))  //
-            {
+                )) {
                 continue;
             }
 

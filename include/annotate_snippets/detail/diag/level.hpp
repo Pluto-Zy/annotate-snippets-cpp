@@ -43,7 +43,7 @@ struct LevelTitleImpl {
 /// screen.
 constexpr inline LevelTitleImpl level_title {};
 
-/// Checks whether type Ty can be used as the level type for diagnostic information.
+/// Checks whether type `Ty` can be used as the diagnostic level type for diagnostic information.
 template <class Ty>
 constexpr bool is_diagnostic_level = std::disjunction_v<has_member_title<Ty>, has_adl_title<Ty>>;
 }  // namespace ants::detail

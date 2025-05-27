@@ -187,8 +187,8 @@ public:
     ) const {
         // If all associated source codes of the current diagnostic entry have no annotations, or if
         // it is not associated with any source code (if `diag_entry.associated_source()` is empty,
-        // then `std::ranges::any_of` returns `false`), then the current diagnostic entry does not
-        // need to render annotations.
+        // then `std::any_of` returns `false`), then the current diagnostic entry does not need to
+        // render annotations.
         bool const has_annotation = std::any_of(
             diag_entry.associated_sources().begin(),
             diag_entry.associated_sources().end(),
