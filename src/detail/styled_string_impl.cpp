@@ -108,7 +108,8 @@ auto StyledStringImpl::styled_line_parts(  //
         // remaining string and move to the next line.
         for (; cur_line_index != lines.size()
              && part_end - part_beg >= lines[cur_line_index].back().content.size();
-             ++cur_line_index) {
+             ++cur_line_index)
+        {
             StyledStringViewPart& unprocessed_part = lines[cur_line_index].back();
             std::string_view& unprocessed_content = unprocessed_part.content;
 

@@ -784,7 +784,8 @@ private:
             // For the head and tail of multiline annotations, we need to draw horizontal connecting
             // lines that link their body and the end of the connecting line.
             if (annotation.type == Annotation::MultilineHead
-                || annotation.type == Annotation::MultilineTail) {
+                || annotation.type == Annotation::MultilineTail)
+            {
                 // Calculate the start and end positions of the horizontal connecting line.
                 //
                 //     func(args)
@@ -1017,11 +1018,13 @@ private:
         // by the underlines of primary annotations and render them to the forefront. This ensures
         // we meet the second requirement.
         for (auto secondary_iter = annotations.begin(); secondary_iter != primary_annotations_begin;
-             ++secondary_iter) {
+             ++secondary_iter)
+        {
             auto const [secondary_beg, secondary_end] = secondary_iter->underline_display_range();
 
             for (auto primary_iter = primary_annotations_begin; primary_iter != annotations.end();
-                 ++primary_iter) {
+                 ++primary_iter)
+            {
                 auto const [primary_beg, primary_end] = primary_iter->underline_display_range();
 
                 // If the primary annotation completely covers the underline of the secondary
@@ -1030,7 +1033,8 @@ private:
                 // `secondary_annotation` because this does not increase the number of visible
                 // underlines.
                 if (primary_beg <= secondary_beg && secondary_end <= primary_end
-                    && primary_end - primary_beg != secondary_end - secondary_beg) {
+                    && primary_end - primary_beg != secondary_end - secondary_beg)
+                {
                     annotation_lines.front().set_styled_content(
                         secondary_beg + source_code_indentation,
                         std::string(secondary_end - secondary_beg, secondary_underline),
@@ -1086,7 +1090,8 @@ private:
 
         for (Annotation const& annotation : annotations) {
             if (annotation.type == Annotation::MultilineBody
-                || annotation.type == Annotation::MultilineTail) {
+                || annotation.type == Annotation::MultilineTail)
+            {
                 // For `MultilineBody` and `MultilineTail`, their `col_beg` member stores the
                 // position where the underline should be drawn (i.e., the depth of the annotation).
                 unsigned const depth = annotation.col_beg.display;
@@ -1479,7 +1484,8 @@ private:
         // pair of overlapping intervals.
         for (auto cur_iter = interval_graph.begin(); cur_iter != interval_graph.end(); ++cur_iter) {
             for (auto neighbor_iter = std::next(cur_iter); neighbor_iter != interval_graph.end();
-                 ++neighbor_iter) {
+                 ++neighbor_iter)
+            {
                 if (cur_iter->overlap(*neighbor_iter)) {
                     cur_iter->neighbors.push_back(&*neighbor_iter);
                     neighbor_iter->neighbors.push_back(&*cur_iter);
@@ -1512,7 +1518,8 @@ private:
         for (Vertex const& vertex : interval_graph) {
             for (auto iter = vertex.associated_annotations.first;
                  iter != vertex.associated_annotations.second;
-                 ++iter) {
+                 ++iter)
+            {
                 // Since `vertex.depth` starts from 1, we need to subtract 1 additionally.
                 iter->depth = vertex.depth - 1;
             }
@@ -1533,7 +1540,8 @@ private:
         // insert elements forward, this ensures that we do not access elements we just inserted.
         for (auto prev_iter = lines_.begin(), cur_iter = std::next(prev_iter);
              cur_iter != lines_.end();
-             prev_iter = cur_iter++) {
+             prev_iter = cur_iter++)
+        {
             unsigned const prev_line_no = prev_iter->first;
             unsigned const cur_line_no = cur_iter->first;
             if (cur_line_no - prev_line_no - 1 > max_unannotated_line_num) {
@@ -1615,7 +1623,8 @@ private:
                     [](Annotation const& annotation) {
                         return annotation.type != Annotation::MultilineBody;
                     }
-                )) {
+                ))
+            {
                 continue;
             }
 
@@ -1909,7 +1918,8 @@ private:
         for (Annotation& self : annotations) {
             // If a single-line annotation does not contain a label, it is always rendered inline.
             if (self.type != Annotation::MultilineHead && self.type != Annotation::MultilineTail
-                && self.label.empty()) {
+                && self.label.empty())
+            {
                 continue;
             }
 
@@ -1962,7 +1972,8 @@ private:
                 // `other`'s underline range might be empty: if `other_beg` and `other_end` are
                 // equal, this `if` statement will not be executed, thus not affecting the result.
                 if ((other_beg < underline_beg && underline_beg <= other_end)
-                    || (other_beg <= underline_end && underline_end < other_end)) {
+                    || (other_beg <= underline_end && underline_end < other_end))
+                {
                     self.label_line_position = 1;
                     break;
                 }
@@ -1970,7 +1981,8 @@ private:
                 // If the current annotation is the head or tail of a multiline annotation, check if
                 // there is an underline from another annotation on its left side.
                 if (self.type == Annotation::MultilineHead
-                    || self.type == Annotation::MultilineTail) {
+                    || self.type == Annotation::MultilineTail)
+                {
                     // Note that we need to explicitly consider whether `other`'s underline range is
                     // empty. We also need to check whether `self` and `other` are the same object,
                     // because we are using `<=` here.
@@ -2258,7 +2270,8 @@ private:
                         // All annotations that need to be rendered in non-inline form should start
                         // rendering from `first_line_height`.
                         if (annotation.type == Annotation::MultilineHead
-                            || annotation.type == Annotation::MultilineTail) {
+                            || annotation.type == Annotation::MultilineTail)
+                        {
                             annotation.label_line_position = multiline_beg;
                         } else {
                             annotation.label_line_position = singleline_beg;
@@ -2301,7 +2314,8 @@ private:
                             // Check if these two multiline annotations have the same label
                             // position.
                             if (cur_vertex->label_line_position()
-                                == neighbor->label_line_position()) {
+                                == neighbor->label_line_position())
+                            {
                                 // According to Rule 4, the label positions of two multiline
                                 // annotations cannot be the same. Since we require the label
                                 // position of `neighbor` to be greater than that of `cur_vertex`,
