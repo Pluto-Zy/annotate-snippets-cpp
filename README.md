@@ -45,7 +45,7 @@ target_link_libraries(your_target PRIVATE ants::annotate_snippets)
 ```
 
 > [!NOTE]
-> Currently `annotate-snippets` is developed using C++23, which has higher requirements for the compiler version. We are lowering the language standard used in the project to C++17.
+> To use `annotate-snippets`, your compiler should support at least C++17.
 
 ## Quick Start
 
@@ -64,9 +64,9 @@ enum class Level {
     SomethingIWant,
 };
 ```
-You can define your own `Level` enumeration arbitrarily. Then you need to define a function `display_string()` that converts `Level` to a string, and `annotate-snippets` will use this function to convert `Level` to the diagnostic level title printed on the screen:
+You can define your own `Level` enumeration arbitrarily. Then you need to define a function `title()` that converts `Level` to a string, and `annotate-snippets` will use this function to convert `Level` to the diagnostic level title printed on the screen:
 ```c++
-auto display_string(Level level) -> char const* {
+auto title(Level level) -> char const* {
     switch (level) {
     case Level::Fatal:
         return "fatal error";
@@ -114,6 +114,7 @@ source.add_annotation(
     "function body"
 );
 // Add a secondary annotation to `World`.
+//
 // By default, the underline of the primary annotation is "^^^", and the underline of the secondary
 // annotation is "---".
 source.add_secondary_annotation(45, 50, "secondary label");
