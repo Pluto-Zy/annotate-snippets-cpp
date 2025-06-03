@@ -114,7 +114,7 @@ jobs:
     strategy:
       matrix:
         build_type: [ Debug, Release ]
-        os: [ windows-2019, windows-2022, windows-2025 ]
+        os: [ windows-2022, windows-2025 ]
 
     name: Build and Test on Windows
     runs-on: ${{matrix.os}}
