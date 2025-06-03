@@ -299,7 +299,7 @@ auto AnnotatedSource::line_content(unsigned line) -> std::string_view {
     if (line_start > source_.size()) {
         return {};
     } else {
-        std::string_view result = source_.substr(line_start, line_end - line_start);
+        std::string_view const result = source_.substr(line_start, line_end - line_start);
         // Remove the trailing '\n' or '\r\n'.
         return remove_final_newline(result);
     }
