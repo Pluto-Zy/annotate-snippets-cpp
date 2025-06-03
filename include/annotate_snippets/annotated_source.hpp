@@ -40,15 +40,34 @@ struct LabeledSpan {
 /// changed, since `AnnotatedSource` only stores the relative location of annotations and does not
 /// own the code.
 class AnnotatedSource {
+    /// Removes the trailing newline character from `str` if it exists.
+    ///
+    /// Our implementation requires that the source always ends with a newline character. If it does
+    /// not, we append a newline character at the end. However, we cannot append characters to
+    /// `string_view`, so we choose to remove the newline character at the end of `str` to ensure
+    /// that we can handle the source code in a consistent manner.
+    static auto remove_final_newline(std::string_view str) -> std::string_view {
+        if (!str.empty() && str.back() == '\n') {
+            str.remove_suffix(1);
+
+            if (!str.empty() && str.back() == '\r') {
+                // If the end is "\r\n", remove both characters.
+                str.remove_suffix(1);
+            }
+        }
+
+        return str;
+    }
+
 public:
     /// Creates an `AnnotatedSource` object that is not associated with any code snippet.
     AnnotatedSource() = default;
     /// Creates an `AnnotatedSource` object that is associated with code snippet `source`.
-    explicit AnnotatedSource(std::string_view source) : source_(source) { }
+    explicit AnnotatedSource(std::string_view source) : source_(remove_final_newline(source)) { }
     /// Create an `AnnotatedSource` object associated with the code snippet `source` and specify its
     /// origin as `origin`.
     explicit AnnotatedSource(std::string_view source, std::string_view origin) :
-        source_(source), origin_(origin) { }
+        source_(remove_final_newline(source)), origin_(origin) { }
 
     auto source() const -> std::string_view {
         return source_;
@@ -101,6 +120,11 @@ public:
     /// Returns the offset of the first byte of line `line`. If this information is already cached
     /// in `line_offsets_` then the cached result is returned, otherwise the result will be
     /// calculated in place and cached.
+    ///
+    /// If `line` is greater than the number of lines in the source code, the offset of the last
+    /// line is returned. Note that if the provided source code does not end with a newline
+    /// character, `AnnotatedSource` will append a newline character at the end. In this case, the
+    /// offset of the last line will be `len + 1`, where `len` is the length of the provided source.
     auto line_offset(unsigned line) -> std::size_t;
 
     void set_line_offset(unsigned line, std::size_t offset) {
@@ -116,6 +140,12 @@ public:
     ///
     /// This method caches the position of the first character of the line where `byte_offset` is
     /// located into the cache `line_offsets_`.
+    ///
+    /// If `byte_offset` exceeds the length of the source code, the last line and column are
+    /// returned. Note that if the provided source code does not end with a newline character,
+    /// `AnnotatedSource` will append a newline character at the end. In this case, there will be
+    /// one more line than the actual number of lines in the source code, and the length of the
+    /// source code will also be increased by one character.
     auto byte_offset_to_line_col(std::size_t byte_offset) -> SourceLocation;
 
     /// Returns the content of the line `line`. If the line does not exist, returns an empty string.

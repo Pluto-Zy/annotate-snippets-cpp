@@ -31,7 +31,7 @@ TEST(AnnotatedSourceTest, LineOffset) {
 
     {
         const char* const source = "ab\ncd\ne\nf";
-        std::vector<unsigned> const line_starts { 0, 3, 6, 8, 9 };
+        std::vector<unsigned> const line_starts { 0, 3, 6, 8, 10 };
 
         TEST_CASE_CHECK_CACHE(0, 1, 2, 3, 4, 5, 6, 100)
         TEST_CASE_CHECK_CACHE(100, 6, 5, 4, 3, 2, 1, 0)
@@ -56,7 +56,7 @@ TEST(AnnotatedSourceTest, LineOffset) {
 
     {
         const char* const source = "abc";
-        std::vector<unsigned> const line_starts { 0, 3 };
+        std::vector<unsigned> const line_starts { 0, 4 };
 
         TEST_CASE_CHECK_CACHE(0, 1, 2, 3, 4, 100)
         TEST_CASE_CHECK_CACHE(100, 4, 3, 2, 1, 0)
@@ -75,7 +75,7 @@ TEST(AnnotatedSourceTest, LineOffset) {
 
     {
         const char* const source = "a";
-        std::vector<unsigned> const line_starts { 0, 1 };
+        std::vector<unsigned> const line_starts { 0, 2 };
 
         TEST_CASE_CHECK_CACHE(0, 1, 2, 3, 4, 100)
         TEST_CASE_CHECK_CACHE(100, 4, 3, 2, 1, 0)
@@ -130,7 +130,7 @@ TEST(AnnotatedSourceTest, LineOffset) {
 
     {
         const char* const source = "\n\n\n\n\na";
-        std::vector<unsigned> const line_starts { 0, 1, 2, 3, 4, 5, 6 };
+        std::vector<unsigned> const line_starts { 0, 1, 2, 3, 4, 5, 7 };
 
         TEST_CASE_CHECK_CACHE(0, 1, 2, 3, 4, 5, 6, 7, 100)
         TEST_CASE_CHECK_CACHE(100, 7, 6, 5, 4, 3, 2, 1, 0)
@@ -155,11 +155,11 @@ TEST(AnnotatedSourceTest, LineOffset) {
 
     {
         const char* const source = "";
-        std::vector<unsigned> const line_starts { 0 };
+        std::vector<unsigned> const line_starts { 0, 1 };
 
         TEST_CASE_CHECK_CACHE(0, 1, 2)
         TEST_CASE_CHECK_CACHE(100, 2, 1, 0)
-        TEST_CASE_CHECK_CACHE(0)
+        TEST_CASE(0)
     }
 
 #undef TEST_CASE_CHECK_CACHE
@@ -182,18 +182,18 @@ TEST(AnnotatedSourceTest, ByteOffsetToLineCol) {
         CHECK_SOURCE_LOCATION(4, 1, 1);
         CHECK_SOURCE_LOCATION(5, 1, 2);
         CHECK_SOURCE_LOCATION(8, 3, 0);
-        CHECK_SOURCE_LOCATION(9, 4, 0);
-        CHECK_SOURCE_LOCATION(10, 4, 1);
-        CHECK_SOURCE_LOCATION(14, 4, 5);
+        CHECK_SOURCE_LOCATION(9, 3, 1);
+        CHECK_SOURCE_LOCATION(10, 4, 0);
+        CHECK_SOURCE_LOCATION(14, 4, 4);
     }
 
     {
         const char* const source = "ab\ncd\ne\nf";
         ants::AnnotatedSource as(source);
 
-        CHECK_SOURCE_LOCATION(14, 4, 5);
-        CHECK_SOURCE_LOCATION(10, 4, 1);
-        CHECK_SOURCE_LOCATION(9, 4, 0);
+        CHECK_SOURCE_LOCATION(14, 4, 4);
+        CHECK_SOURCE_LOCATION(10, 4, 0);
+        CHECK_SOURCE_LOCATION(9, 3, 1);
         CHECK_SOURCE_LOCATION(8, 3, 0);
         CHECK_SOURCE_LOCATION(5, 1, 2);
         CHECK_SOURCE_LOCATION(4, 1, 1);
@@ -207,11 +207,11 @@ TEST(AnnotatedSourceTest, ByteOffsetToLineCol) {
         const char* const source = "ab\ncd\ne\nf";
         ants::AnnotatedSource as(source);
 
-        CHECK_SOURCE_LOCATION(14, 4, 5);
-        CHECK_SOURCE_LOCATION(10, 4, 1);
+        CHECK_SOURCE_LOCATION(14, 4, 4);
+        CHECK_SOURCE_LOCATION(10, 4, 0);
         CHECK_SOURCE_LOCATION(5, 1, 2);
         CHECK_SOURCE_LOCATION(4, 1, 1);
-        CHECK_SOURCE_LOCATION(9, 4, 0);
+        CHECK_SOURCE_LOCATION(9, 3, 1);
         CHECK_SOURCE_LOCATION(8, 3, 0);
         CHECK_SOURCE_LOCATION(1, 0, 1);
         CHECK_SOURCE_LOCATION(3, 1, 0);
@@ -223,7 +223,7 @@ TEST(AnnotatedSourceTest, ByteOffsetToLineCol) {
         const char* const source = "ab\ncd\ne\nf";
         ants::AnnotatedSource as(source);
 
-        CHECK_SOURCE_LOCATION(14, 4, 5);
+        CHECK_SOURCE_LOCATION(14, 4, 4);
         CHECK_SOURCE_LOCATION(7, 2, 1);
         CHECK_SOURCE_LOCATION(1, 0, 1);
         CHECK_SOURCE_LOCATION(0, 0, 0);
@@ -249,21 +249,78 @@ TEST(AnnotatedSourceTest, ByteOffsetToLineCol) {
     }
 
     {
-        const char* const source = "abc";
+        const char* const source = "ab\ncd\ne\nf";
         ants::AnnotatedSource as(source);
 
+        // Add cache by `line_offset()`.
+        as.line_offset(100);
+
         CHECK_SOURCE_LOCATION(0, 0, 0);
+        CHECK_SOURCE_LOCATION(1, 0, 1);
         CHECK_SOURCE_LOCATION(2, 0, 2);
         CHECK_SOURCE_LOCATION(3, 1, 0);
         CHECK_SOURCE_LOCATION(4, 1, 1);
+        CHECK_SOURCE_LOCATION(5, 1, 2);
+        CHECK_SOURCE_LOCATION(8, 3, 0);
+        CHECK_SOURCE_LOCATION(9, 3, 1);
+        CHECK_SOURCE_LOCATION(10, 4, 0);
+        CHECK_SOURCE_LOCATION(14, 4, 4);
+    }
+
+    {
+        const char* const source = "ab\ncd\ne\nf";
+        ants::AnnotatedSource as(source);
+
+        // Add cache by `line_offset()`.
+        as.line_offset(100);
+
+        CHECK_SOURCE_LOCATION(14, 4, 4);
+        CHECK_SOURCE_LOCATION(10, 4, 0);
+        CHECK_SOURCE_LOCATION(9, 3, 1);
+        CHECK_SOURCE_LOCATION(8, 3, 0);
+        CHECK_SOURCE_LOCATION(5, 1, 2);
+        CHECK_SOURCE_LOCATION(4, 1, 1);
+        CHECK_SOURCE_LOCATION(3, 1, 0);
+        CHECK_SOURCE_LOCATION(2, 0, 2);
+        CHECK_SOURCE_LOCATION(1, 0, 1);
+        CHECK_SOURCE_LOCATION(0, 0, 0);
+    }
+
+    {
+        const char* const source = "ab\ncd\ne\nf";
+        ants::AnnotatedSource as(source);
+
+        // Add cache by `line_offset()`.
+        as.line_offset(4);
+
+        CHECK_SOURCE_LOCATION(14, 4, 4);
+        CHECK_SOURCE_LOCATION(10, 4, 0);
+        CHECK_SOURCE_LOCATION(9, 3, 1);
+        CHECK_SOURCE_LOCATION(8, 3, 0);
+        CHECK_SOURCE_LOCATION(5, 1, 2);
+        CHECK_SOURCE_LOCATION(4, 1, 1);
+        CHECK_SOURCE_LOCATION(3, 1, 0);
+        CHECK_SOURCE_LOCATION(2, 0, 2);
+        CHECK_SOURCE_LOCATION(1, 0, 1);
+        CHECK_SOURCE_LOCATION(0, 0, 0);
     }
 
     {
         const char* const source = "abc";
         ants::AnnotatedSource as(source);
 
-        CHECK_SOURCE_LOCATION(4, 1, 1);
-        CHECK_SOURCE_LOCATION(3, 1, 0);
+        CHECK_SOURCE_LOCATION(0, 0, 0);
+        CHECK_SOURCE_LOCATION(2, 0, 2);
+        CHECK_SOURCE_LOCATION(3, 0, 3);
+        CHECK_SOURCE_LOCATION(4, 1, 0);
+    }
+
+    {
+        const char* const source = "abc";
+        ants::AnnotatedSource as(source);
+
+        CHECK_SOURCE_LOCATION(4, 1, 0);
+        CHECK_SOURCE_LOCATION(3, 0, 3);
         CHECK_SOURCE_LOCATION(2, 0, 2);
         CHECK_SOURCE_LOCATION(0, 0, 0);
     }
@@ -280,9 +337,9 @@ TEST(AnnotatedSourceTest, ByteOffsetToLineCol) {
         const char* const source = "abc";
         ants::AnnotatedSource as(source);
 
-        CHECK_SOURCE_LOCATION(4, 1, 1);
-        CHECK_SOURCE_LOCATION(6, 1, 3);
-        CHECK_SOURCE_LOCATION(5, 1, 2);
+        CHECK_SOURCE_LOCATION(4, 1, 0);
+        CHECK_SOURCE_LOCATION(6, 1, 2);
+        CHECK_SOURCE_LOCATION(5, 1, 1);
     }
 
     {
@@ -393,16 +450,16 @@ TEST(AnnotatedSourceTest, ByteOffsetToLineCol) {
         ants::AnnotatedSource as(source);
 
         CHECK_SOURCE_LOCATION(0, 0, 0);
-        CHECK_SOURCE_LOCATION(1, 0, 1);
-        CHECK_SOURCE_LOCATION(2, 0, 2);
+        CHECK_SOURCE_LOCATION(1, 1, 0);
+        CHECK_SOURCE_LOCATION(2, 1, 1);
     }
 
     {
         const char* const source = "";
         ants::AnnotatedSource as(source);
 
-        CHECK_SOURCE_LOCATION(2, 0, 2);
-        CHECK_SOURCE_LOCATION(1, 0, 1);
+        CHECK_SOURCE_LOCATION(2, 1, 1);
+        CHECK_SOURCE_LOCATION(1, 1, 0);
         CHECK_SOURCE_LOCATION(0, 0, 0);
     }
 

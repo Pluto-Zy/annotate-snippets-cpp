@@ -12,19 +12,37 @@ namespace {
 /// Calculates and returns the position of the first byte of line `target_line` in the source code
 /// `source`. This function assumes that this position is not stored in the cache
 /// `line_offset_cache` and will add the result to the cache. This function also utilizes existing
-/// information in the cache to reduce the range of characters that need to be traversed. If
-/// `target_line` exceeds the actual number of lines in `source`, it returns `source.size()`, and
-/// this result is not added to the cache.
+/// information in the cache to reduce the range of characters that need to be traversed.
+///
+/// If `target_line` exceeds the actual number of lines in `source`, it returns `source.size() + 1`.
+/// Since `AnnotatedSource` removes the trailing newline character from `source`, we need to add 1
+/// to skip this newline character.
 auto compute_line_offset(
     std::map<unsigned, std::size_t>& line_offset_cache,
     unsigned target_line,
     std::string_view source
 ) -> std::size_t {
+    if (target_line == 0) {
+        // If the target line is 0, we return the start of the source code.
+        //
+        // We handle the case where `target_line` is 0 in advance to simplify the code later.
+        line_offset_cache.emplace(0, 0);
+        return 0;
+    }
+
     // Searches forward from the starting position `start_offset` of `start_line` to find the
     // position of the target line `target_line`. If `target_line` exceeds the actual number of
-    // lines, returns `source.size()` and adds the line immediately following the actual last line
-    // to the cache.
-    auto const find_forward = [&](unsigned start_line, std::size_t start_offset) -> std::size_t {
+    // lines, returns `source.size() + 1` and adds the line immediately following the actual last
+    // line to the cache.
+    auto const find_forward = [&](unsigned start_line, std::size_t start_offset) {
+        if (start_offset > source.size()) {
+            // If `start_offset` exceeds the size of `source`, we are trying to find a line from the
+            // added hypothetical line. We don't add the target line to the cache in this case, and
+            // return `source.size() + 1` to indicate that the target line is beyond the actual
+            // number of lines.
+            return source.size() + 1;
+        }
+
         for (unsigned cur_line = start_line; cur_line != target_line; ++cur_line) {
             std::size_t const pos = source.find('\n', start_offset);
             if (pos == std::string_view::npos) {
@@ -32,50 +50,46 @@ auto compute_line_offset(
                 // number of lines. At this point, `cur_line` is the line number of the last line,
                 // and we store the line immediately following the last line in the cache.
                 //
-                // Special case: If `source` ends with '\n', then the actual last line is empty,
-                // which causes the last line and the line following the last line to have the same
-                // starting position. In this case, we do not add the hypothetical end line.
-                unsigned const line = start_offset == source.size() ? cur_line : cur_line + 1;
-                line_offset_cache[line] = source.size();
-                return source.size();
+                // Note that the next line starts at `source.size() + 1`, which is the position
+                // immediately after the removed trailing newline character.
+                line_offset_cache.emplace(cur_line + 1, source.size() + 1);
+                return source.size() + 1;
             }
             // FIXME: Should we also cache the information about the lines we pass through during
             // traversal?
             start_offset = pos + 1;
         }
 
-        line_offset_cache[target_line] = start_offset;
+        line_offset_cache.emplace(target_line, start_offset);
         return start_offset;
     };
 
     // Finds the index of the first byte of `target_line` by searching backwards from `start_line`.
-    auto const find_backward = [&](unsigned start_line, std::size_t start_offset) -> std::size_t {
-        // Now `start_offset` is the start position of line `start_line`, and we need to move
-        // `start_offset` to the end of the previous line. We assume `start_line` cannot be 0 (as we
-        // do not search backward from line 0), so `start_offset` will not be 0.
+    auto const find_backward = [&](unsigned start_line, std::size_t start_offset) {
+        // Now `start_offset` is the start position of line `start_line`, and we need to search from
+        // this position. However, we already know that the character at `start_offset - 1` is the
+        // newline character of the previous line, so we start searching from `start_offset - 2` to
+        // reduce the number of `rfind()` calls.
+        //
+        // We also need to consider the possibility of `start_offset` wrapping around to the maximum
+        // value. Since we will not start searching backward from line 0, `start_offset` will not be
+        // 0. It will also not be 1, because this would only happen when we try to search backward
+        // from line 1 (where `start_line` is 1) to find the start position of line 0 (where
+        // `target_line` is 0), and we have already handled the case in advance. Therefore, we can
+        // safely calculate `start_offset - 2`.
         --start_offset;
 
         for (unsigned cur_line = start_line; cur_line != target_line; --cur_line) {
             // `start_offset` now points to the newline character at the end of the previous line of
             // `cur_line`. To continue searching backward, we decrement `start_offset` by 1 to skip
-            // this newline character. However, if the content of the current line is only one
-            // newline character, `start_offset - 1` would jump directly to an even earlier line.
-            // Generally, this is not an issue, except when we are already at line 0: further
-            // decrementing would cause `start_offset` to underflow, resulting in `rfind()`
-            // searching the entire string. Therefore, when we are already at the start, we no
-            // longer continue to search and return 0 directly.
+            // this newline character. This is safe according to the previous description.
             --start_offset;
-            if (start_offset == std::string_view::npos) {
-                break;
-            }
             // FIXME: Should we also cache the information about the lines we pass through during
             // traversal?
             start_offset = source.rfind('\n', start_offset);
         }
 
-        // If `rfind()` returns `npos`, then since `npos` is defined as `size_type(-1)`, `npos + 1`
-        // will yield 0, which is what we expect.
-        line_offset_cache[target_line] = start_offset + 1;
+        line_offset_cache.emplace(target_line, start_offset + 1);
         return start_offset + 1;
     };
 
@@ -118,6 +132,11 @@ auto compute_line_offset(
 /// Calculates the line on which the byte at `byte_offset` is located, returns the line number and
 /// the offset of the first byte of that line. This function also adds this line to the cache. It
 /// attempts to use the existing cache `line_offset_cache` to compute the result more quickly.
+///
+/// Note that since we implicitly add a newline character at the end of the source code, if
+/// `byte_offset` is equal to `source.size()`, it is considered to be on the last line. If it is
+/// greater than `source.size()`, it is considered to be on the line immediately following the last
+/// line.
 auto byte_offset_to_line(
     std::map<unsigned, std::size_t>& line_offset_cache,
     std::size_t byte_offset,
@@ -131,11 +150,12 @@ auto byte_offset_to_line(
             // character exactly at `byte_offset`. Therefore, we need to check if `byte_offset` is
             // 0.
             return static_cast<std::size_t>(0);
-        } else if (byte_offset >= source.size()) {
-            // If the requested position exceeds the valid range of `source`, we cannot use
-            // `rfind()` to locate the start of this line, as there may not necessarily be a newline
-            // character between the hypothetical end line and the actual last line of the file.
-            return source.size();
+        } else if (byte_offset > source.size()) {
+            // If the requested position is greater than the size of `source`, it is considered to
+            // be on the line immediately following the last line. Note that the line starts at
+            // `source.size() + 1`, which is the position immediately after the removed trailing
+            // newline character.
+            return source.size() + 1;
         } else {
             std::size_t const pos = source.rfind('\n', byte_offset - 1);
             // If `pos` is `std::string_view::npos`, since `npos` is defined as `size_type(-1)`,
@@ -145,20 +165,25 @@ auto byte_offset_to_line(
     };
 
     // Searches forward from `start_offset` to determine the line number containing `byte_offset`,
-    // returning its line number and the start position of this line. If `byte_offset` exceeds the
-    // valid range of `source`, it is considered to be on the line immediately following the actual
+    // returning its line number and the start position of this line. If `byte_offset` is greater
+    // than `source.size()`, it is considered to be on the line immediately following the actual
     // last line. This function does not modify the cache.
     auto const find_forward = [&](unsigned start_line, std::size_t start_offset) {
+        if (start_offset > source.size()) {
+            // If `start_offset` is greater than the size of `source`, it is considered to be on the
+            // line immediately following the last line. Note that the line starts at `source.size()
+            // + 1`, which is the position immediately after the removed trailing newline character.
+            return std::make_pair(start_line, source.size() + 1);
+        }
+
         // Counts the number of newline characters between [start_offset, byte_offset).
         std::string_view const substr = source.substr(start_offset, byte_offset - start_offset);
         auto lines = static_cast<unsigned>(std::count(substr.begin(), substr.end(), '\n'));
         // If `byte_offset` exceeds the valid range of `source` but `start_offset` is still within
         // the valid range, we need to consider the hypothetical line where `byte_offset` is
-        // located. We only add this hypothetical line if `source` does not end with '\n'.
-        if (byte_offset >= source.size() && start_offset != source.size()) {
-            if (!source.empty() && source.back() != '\n') {
-                ++lines;
-            }
+        // located.
+        if (byte_offset > source.size()) {
+            ++lines;
         }
 
         return std::make_pair(start_line + lines, find_line_start());
@@ -180,6 +205,11 @@ auto byte_offset_to_line(
         --start_offset;
 
         // Counts the number of newline characters between [byte_offset, start_offset).
+        //
+        // Note that in this function, `byte_offset` will not exceed `source.size()`, because the
+        // starting position of the hypothetical last line in the cache is `source.size() + 1`. In
+        // this case, `closest_next_iter` will be the end iterator, and we will only calculate the
+        // line number using `find_forward()` rather than `find_backward()`.
         std::string_view const substr = source.substr(byte_offset, start_offset - byte_offset);
         auto const lines = static_cast<unsigned>(std::count(substr.begin(), substr.end(), '\n'));
 
@@ -266,22 +296,12 @@ auto AnnotatedSource::line_content(unsigned line) -> std::string_view {
     std::size_t const line_start = line_offset(line);
     std::size_t const line_end = line_offset(line + 1);
 
-    if (line_start >= source_.size()) {
+    if (line_start > source_.size()) {
         return {};
     } else {
         std::string_view result = source_.substr(line_start, line_end - line_start);
-
-        // Remove the trailing '\n'.
-        if (!result.empty() && result.back() == '\n') {
-            result = result.substr(0, result.size() - 1);
-
-            // If the end is "\r\n", remove both characters.
-            if (!result.empty() && result.back() == '\r') {
-                result = result.substr(0, result.size() - 1);
-            }
-        }
-
-        return result;
+        // Remove the trailing '\n' or '\r\n'.
+        return remove_final_newline(result);
     }
 }
 }  // namespace ants
