@@ -595,27 +595,33 @@ void render_file_line_col(
 }
 
 /// Replaces the tab characters in the `source` code with the number of spaces specified by
-/// `display_tab_width`. If `display_tab_width` is 0, the tab characters are not replaced.
-auto normalize_source(std::string_view source, unsigned display_tab_width) -> std::string {
+/// `display_tab_width`. If `display_tab_width` is 0, the tab characters are not replaced. The
+/// normalized source code is appended to `output`.
+void normalize_source(std::string& output, std::string_view source, unsigned display_tab_width) {
     if (display_tab_width == 0) {
-        return static_cast<std::string>(source);
+        output.append(source);
     } else {
-        std::string normalized_source;
-        normalized_source.reserve(source.size());
-
+        output.reserve(output.size() + source.size());
         for (char const ch : source) {
             switch (ch) {
             case '\t':
                 // Replace '\t' with the specified number of spaces.
-                normalized_source.append(display_tab_width, ' ');
+                output.append(display_tab_width, ' ');
                 break;
             default:
-                normalized_source.push_back(ch);
+                output.push_back(ch);
             }
         }
-
-        return normalized_source;
     }
+}
+
+/// Replaces the tab characters in the `source` code with the number of spaces specified by
+/// `display_tab_width`. If `display_tab_width` is 0, the tab characters are not replaced. Returns
+/// the normalized source code as a `std::string`.
+auto normalize_source(std::string_view source, unsigned display_tab_width) -> std::string {
+    std::string normalized_source;
+    normalize_source(normalized_source, source, display_tab_width);
+    return normalized_source;
 }
 
 /// `hash_combine` implementation from Boost.
@@ -2863,7 +2869,9 @@ public:
     ) :
         line_num(line_num),
         line_content(normalize_source(line_content, display_tab_width)),
-        associated_patches { PatchSnippet(patch_kind, 0, line_content.size()) },
+        associated_patches {
+            PatchSnippet(patch_kind, 0, static_cast<unsigned>(line_content.size())),
+        },
         render_style_(style) { }
 
     auto render_style() const -> RenderStyle {
@@ -2906,10 +2914,10 @@ public:
 
     void append(std::string_view content, unsigned display_tab_width, PatchSnippet::Kind kind) {
         auto const col_beg = static_cast<unsigned>(line_content.size());
-        std::string normalized_source = normalize_source(content, display_tab_width);
-        auto const col_end = static_cast<unsigned>(col_beg + normalized_source.size());
-
-        line_content.append(normalized_source);
+        // Append the normalized content to the end of the line.
+        normalize_source(line_content, content, display_tab_width);
+        // Record the updated end position of the line.
+        auto const col_end = static_cast<unsigned>(line_content.size());
         associated_patches.emplace_back(kind, col_beg, col_end);
     }
 
@@ -3766,16 +3774,17 @@ private:
             for (PatchSnippet& snippet : line.associated_patches) {
                 // Compute the display width of the string segment before the current highlight
                 // range.
-                last_display_width += detail::display_width(
+                last_display_width += static_cast<unsigned>(detail::display_width(
                     line_content.substr(last_pos, snippet.col_beg.byte - last_pos)
-                );
+                ));
                 snippet.col_beg.display = last_display_width;
 
                 // Compute the display width of the current highlight range.
-                last_display_width += detail::display_width(line_content.substr(
-                    snippet.col_beg.byte,
-                    snippet.col_end.byte - snippet.col_beg.byte
-                ));
+                last_display_width +=
+                    static_cast<unsigned>(detail::display_width(line_content.substr(  //
+                        snippet.col_beg.byte,
+                        snippet.col_end.byte - snippet.col_beg.byte
+                    )));
                 snippet.col_end.display = last_display_width;
 
                 last_pos = snippet.col_end.byte;
