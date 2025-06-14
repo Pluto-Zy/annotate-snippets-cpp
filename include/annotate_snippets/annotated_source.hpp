@@ -3,7 +3,10 @@
 
 #include "annotate_snippets/styled_string_view.hpp"
 
+#include <algorithm>
+#include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <map>
 #include <string_view>
@@ -11,6 +14,8 @@
 #include <vector>
 
 namespace ants {
+class AnnotatedSource;
+
 /// Represents the location of a *byte* in the source code.
 // FIXME: unsigned or std::size_t?
 struct SourceLocation {
@@ -22,6 +27,26 @@ struct SourceLocation {
     friend constexpr auto operator==(SourceLocation lhs, SourceLocation rhs) -> bool {
         return lhs.line == rhs.line && lhs.col == rhs.col;
     }
+
+    friend constexpr auto operator!=(SourceLocation lhs, SourceLocation rhs) -> bool {
+        return !(lhs == rhs);
+    }
+
+    friend constexpr auto operator<(SourceLocation lhs, SourceLocation rhs) -> bool {
+        return lhs.line < rhs.line || (lhs.line == rhs.line && lhs.col < rhs.col);
+    }
+
+    friend constexpr auto operator<=(SourceLocation lhs, SourceLocation rhs) -> bool {
+        return !(rhs < lhs);
+    }
+
+    friend constexpr auto operator>(SourceLocation lhs, SourceLocation rhs) -> bool {
+        return rhs < lhs;
+    }
+
+    friend constexpr auto operator>=(SourceLocation lhs, SourceLocation rhs) -> bool {
+        return !(lhs < rhs);
+    }
 };
 
 /// Represents a single annotation span in the source code, with an optional label. When rendering
@@ -32,9 +57,171 @@ struct LabeledSpan {
     /// The label attached to this span. If label.empty() is true, we consider the annotation to
     /// have no label attached.
     StyledStringView label;
+
+    /// Adjusts the range of the span. Returns the adjusted span (does not modify `*this`).
+    ///
+    /// This function adjusts the span in two ways:
+    /// 1. If the current span points to an empty range (`beg == end`), it adjusts it to include 1
+    ///    byte.
+    /// 2. If the current span's `end` points to the start of a line, it adjusts it to point to the
+    ///    end of the previous line. Since the character pointed to by `end` is not included in the
+    ///    span, this ensures that we render the correct result (e.g., it does not treat a
+    ///    single-line span as a multi-line span). Consider the following example:
+    ///
+    ///        "hello"
+    ///        ^^^^^^^ We want to annotate this word.
+    ///        "world"
+    ///        ^ However, `end` points to the start of the next line. We cannot render this line.
+    ///
+    /// This function requires an `AnnotatedSource` object to correctly calculate the length of
+    /// lines.
+    [[nodiscard]] auto adjust(AnnotatedSource& source) const -> LabeledSpan;
 };
 
-/// Represents source code with some annotations.
+/// Represents a modification to the source code.
+///
+/// `Patch` uses a pair of locations to represent the start and end positions of the modification,
+/// and stores the content of the source code after the modification.
+///
+/// `Patch` supports 3 different types of modifications:
+/// 1. Addition: Indicates that new content is inserted at the specified position. In this case,
+///    `beg_ == end_`, and the new string will be inserted before the character pointed to by
+///    `beg_`.
+/// 2. Deletion: Indicates that the content at the specified position is deleted. In this case,
+///    `replacement_` is empty.
+/// 3. Replacement: Indicates that the content at the specified position is replaced with new
+///    content. In this case, `beg_ != end_`, and `replacement_` is non-empty.
+///
+/// Note that `Patch` supports specifying locations either as `SourceLocation` or byte offsets.
+/// However, we can only convert one representation to another when we have an `AnnotatedSource`
+/// object. Inside `AnnotatedSource`, we convert all `Patch` objects to the `SourceLocation`
+/// representation.
+struct Patch {
+    Patch() : Patch(SourceLocation(), SourceLocation(), {}) { }
+
+    Patch(SourceLocation beg, SourceLocation end, std::string_view replacement) :
+        beg_(beg),
+        end_(end),
+        replacement_(replacement),
+        replacement_lines_(
+            static_cast<unsigned>(std::count(replacement.begin(), replacement.end(), '\n') + 1)
+        ),
+        location_type_(LineColumn) { }
+
+    Patch(std::size_t beg, std::size_t end, std::string_view replacement) :
+        beg_(beg),
+        end_(end),
+        replacement_(replacement),
+        replacement_lines_(
+            static_cast<unsigned>(std::count(replacement.begin(), replacement.end(), '\n') + 1)
+        ),
+        location_type_(ByteOffset) { }
+
+    auto is_addition() const -> bool {
+        switch (location_type_) {
+        case LineColumn:
+            return beg_.loc_ == end_.loc_;
+
+        case ByteOffset:
+        default:
+            return beg_.byte_offset_ == end_.byte_offset_;
+        }
+    }
+
+    auto is_deletion() const -> bool {
+        return replacement_.empty();
+    }
+
+    auto is_replacement() const -> bool {
+        return !is_addition() && !is_deletion();
+    }
+
+    auto location_begin() const -> SourceLocation {
+        assert(location_type_ == LineColumn);
+        return beg_.loc_;
+    }
+
+    auto location_end() const -> SourceLocation {
+        assert(location_type_ == LineColumn);
+        return end_.loc_;
+    }
+
+    auto replacement() const -> std::string_view {
+        return replacement_;
+    }
+
+    auto replacement_lines() const -> unsigned {
+        return replacement_lines_;
+    }
+
+    /// Returns a `Patch` that inserts `replacement` before the character at `loc`.
+    static auto addition(SourceLocation loc, std::string_view replacement) -> Patch {
+        return { /*beg=*/loc, /*end=*/loc, replacement };
+    }
+
+    /// Returns a `Patch` that inserts `replacement` before the character at the specified byte
+    /// offset.
+    static auto addition(std::size_t byte_offset, std::string_view replacement) -> Patch {
+        return { /*beg=*/byte_offset, /*end=*/byte_offset, replacement };
+    }
+
+    /// Returns a `Patch` that deletes the content at the specified range.
+    static auto deletion(SourceLocation beg, SourceLocation end) -> Patch {
+        return { beg, end, /*replacement=*/ {} };
+    }
+
+    /// Returns a `Patch` that deletes the content at the specified byte offsets.
+    static auto deletion(std::size_t beg, std::size_t end) -> Patch {
+        return { beg, end, /*replacement=*/ {} };
+    }
+
+    /// Returns a `Patch` that replaces the content at the specified range with `replacement`.
+    static auto replacement(  //
+        SourceLocation beg,
+        SourceLocation end,
+        std::string_view replacement
+    ) -> Patch {
+        return { beg, end, replacement };
+    }
+
+    /// Returns a `Patch` that replaces the content at the specified byte offsets with
+    /// `replacement`.
+    static auto replacement(  //
+        std::size_t beg,
+        std::size_t end,
+        std::string_view replacement
+    ) -> Patch {
+        return { beg, end, replacement };
+    }
+
+private:
+    union Location {
+        SourceLocation loc_;
+        std::size_t byte_offset_;
+
+        Location(SourceLocation loc) : loc_(loc) { }
+        Location(std::size_t byte_offset) : byte_offset_(byte_offset) { }
+    } beg_, end_;
+    /// The content of the source code after the modification. If this is an addition, it contains
+    /// the content to be inserted. If this is a deletion, it is empty. If this is a replacement, it
+    /// contains the content to replace the original content.
+    std::string_view replacement_;
+    /// The number of lines of `replacement_`. The value is computed and cached here to avoid
+    /// recalculating.
+    unsigned replacement_lines_;
+    /// Represents the type of the `beg_` and `end_` locations. This is used to determine how to
+    /// interpret the `beg_` and `end_` locations when applying the patch.
+    enum : std::uint8_t {
+        /// Indicates that the `beg_` and `end_` locations are specified as `SourceLocation`.
+        LineColumn,
+        /// Indicates that the `beg_` and `end_` locations are specified as byte offsets.
+        ByteOffset,
+    } location_type_;
+
+    friend AnnotatedSource;
+};
+
+/// Represents source code with some annotations and fixes.
 ///
 /// Note that `AnnotatedSource` assumes that once constructed, the code it refers to will not be
 /// changed, since `AnnotatedSource` only stores the relative location of annotations and does not
@@ -148,6 +335,19 @@ public:
     /// source code will also be increased by one character.
     auto byte_offset_to_line_col(std::size_t byte_offset) -> SourceLocation;
 
+    /// Adjusts `loc` to ensure it is within the valid range of the source code.
+    ///
+    /// This function checks if `loc` is within the range of the source code. It handles the
+    /// following two scenarios:
+    /// - If the column of `loc` exceeds the number of valid characters in that line, it adjusts
+    ///   `loc` to point to the start of the next line.
+    /// - If the line of `loc` exceeds the actual number of lines in the source code, it adjusts
+    ///   `loc` to point to the end of the source code (`source.size()`).
+    ///
+    /// Returns the adjusted `SourceLocation`.
+    auto normalize_location(SourceLocation loc) -> SourceLocation;
+    auto normalize_location(std::size_t byte_offset) -> SourceLocation;
+
     /// Returns the content of the line `line`. If the line does not exist, returns an empty string.
     ///
     /// Note that the returned string does not include the trailing newline character, whether it is
@@ -175,11 +375,16 @@ public:
         SourceLocation end,
         StyledStringView label
     ) {
-        primary_spans_.push_back(LabeledSpan {
-            /*beg=*/beg,
-            /*end=*/end,
-            /*label=*/std::move(label),
-        });
+        // clang-format off
+        primary_spans_.push_back(
+            LabeledSpan {
+                /*beg=*/beg,
+                /*end=*/end,
+                /*label=*/std::move(label),
+            }
+            .adjust(*this)
+        );
+        // clang-format on
     }
 
     auto with_primary_labeled_annotation(
@@ -314,11 +519,16 @@ public:
         SourceLocation end,
         StyledStringView label
     ) {
-        secondary_spans_.push_back(LabeledSpan {
-            /*beg=*/beg,
-            /*end=*/end,
-            /*label=*/std::move(label),
-        });
+        // clang-format off
+        secondary_spans_.push_back(
+            LabeledSpan {
+                /*beg=*/beg,
+                /*end=*/end,
+                /*label=*/std::move(label),
+            }
+            .adjust(*this)
+        );
+        // clang-format on
     }
 
     auto with_secondary_labeled_annotation(
@@ -571,6 +781,220 @@ public:
         return std::move(*this);
     }
 
+    auto patches() const -> std::vector<Patch> const& {
+        return patches_;
+    }
+
+    auto patches() -> std::vector<Patch>& {
+        return patches_;
+    }
+
+    void add_patch(Patch patch) {
+        switch (patch.location_type_) {
+        case Patch::LineColumn:
+            patch.beg_ = normalize_location(patch.beg_.loc_);
+            patch.end_ = normalize_location(patch.end_.loc_);
+            break;
+
+        case Patch::ByteOffset:
+        default:
+            patch.beg_ = normalize_location(patch.beg_.byte_offset_);
+            patch.end_ = normalize_location(patch.end_.byte_offset_);
+            patch.location_type_ = Patch::LineColumn;
+            break;
+        }
+
+        patches_.push_back(patch);
+    }
+
+    auto with_patch(Patch patch) & -> AnnotatedSource& {
+        add_patch(patch);
+        return *this;
+    }
+
+    auto with_patch(Patch patch) && -> AnnotatedSource&& {
+        add_patch(patch);
+        return std::move(*this);
+    }
+
+    void add_patch(SourceLocation beg, SourceLocation end, std::string_view replacement) {
+        patches_.push_back(
+            Patch::replacement(normalize_location(beg), normalize_location(end), replacement)
+        );
+    }
+
+    auto with_patch(
+        SourceLocation beg,
+        SourceLocation end,
+        std::string_view replacement
+    ) & -> AnnotatedSource& {
+        add_patch(beg, end, replacement);
+        return *this;
+    }
+
+    auto with_patch(
+        SourceLocation beg,
+        SourceLocation end,
+        std::string_view replacement
+    ) && -> AnnotatedSource&& {
+        add_patch(beg, end, replacement);
+        return std::move(*this);
+    }
+
+    void add_patch(std::size_t byte_beg, std::size_t byte_end, std::string_view replacement) {
+        patches_.push_back(Patch::replacement(
+            normalize_location(byte_beg),
+            normalize_location(byte_end),
+            replacement
+        ));
+    }
+
+    auto with_patch(
+        std::size_t byte_beg,
+        std::size_t byte_end,
+        std::string_view replacement
+    ) & -> AnnotatedSource& {
+        add_patch(byte_beg, byte_end, replacement);
+        return *this;
+    }
+
+    auto with_patch(
+        std::size_t byte_beg,
+        std::size_t byte_end,
+        std::string_view replacement
+    ) && -> AnnotatedSource&& {
+        add_patch(byte_beg, byte_end, replacement);
+        return std::move(*this);
+    }
+
+    void add_addition_patch(SourceLocation loc, std::string_view replacement) {
+        patches_.push_back(Patch::addition(normalize_location(loc), replacement));
+    }
+
+    auto with_addition_patch(
+        SourceLocation loc,
+        std::string_view replacement
+    ) & -> AnnotatedSource& {
+        add_addition_patch(loc, replacement);
+        return *this;
+    }
+
+    auto with_addition_patch(
+        SourceLocation loc,
+        std::string_view replacement
+    ) && -> AnnotatedSource&& {
+        add_addition_patch(loc, replacement);
+        return std::move(*this);
+    }
+
+    void add_addition_patch(std::size_t byte_loc, std::string_view replacement) {
+        patches_.push_back(Patch::addition(normalize_location(byte_loc), replacement));
+    }
+
+    auto with_addition_patch(
+        std::size_t byte_loc,
+        std::string_view replacement
+    ) & -> AnnotatedSource& {
+        add_addition_patch(byte_loc, replacement);
+        return *this;
+    }
+
+    auto with_addition_patch(
+        std::size_t byte_loc,
+        std::string_view replacement
+    ) && -> AnnotatedSource&& {
+        add_addition_patch(byte_loc, replacement);
+        return std::move(*this);
+    }
+
+    void add_deletion_patch(SourceLocation beg, SourceLocation end) {
+        patches_.push_back(Patch::deletion(normalize_location(beg), normalize_location(end)));
+    }
+
+    auto with_deletion_patch(SourceLocation beg, SourceLocation end) & -> AnnotatedSource& {
+        add_deletion_patch(beg, end);
+        return *this;
+    }
+
+    auto with_deletion_patch(SourceLocation beg, SourceLocation end) && -> AnnotatedSource&& {
+        add_deletion_patch(beg, end);
+        return std::move(*this);
+    }
+
+    void add_deletion_patch(std::size_t byte_beg, std::size_t byte_end) {
+        patches_.push_back(
+            Patch::deletion(normalize_location(byte_beg), normalize_location(byte_end))
+        );
+    }
+
+    auto with_deletion_patch(std::size_t byte_beg, std::size_t byte_end) & -> AnnotatedSource& {
+        add_deletion_patch(byte_beg, byte_end);
+        return *this;
+    }
+
+    auto with_deletion_patch(std::size_t byte_beg, std::size_t byte_end) && -> AnnotatedSource&& {
+        add_deletion_patch(byte_beg, byte_end);
+        return std::move(*this);
+    }
+
+    void add_replacement_patch(
+        SourceLocation beg,
+        SourceLocation end,
+        std::string_view replacement
+    ) {
+        patches_.push_back(
+            Patch::replacement(normalize_location(beg), normalize_location(end), replacement)
+        );
+    }
+
+    auto with_replacement_patch(
+        SourceLocation beg,
+        SourceLocation end,
+        std::string_view replacement
+    ) & -> AnnotatedSource& {
+        add_replacement_patch(beg, end, replacement);
+        return *this;
+    }
+
+    auto with_replacement_patch(
+        SourceLocation beg,
+        SourceLocation end,
+        std::string_view replacement
+    ) && -> AnnotatedSource&& {
+        add_replacement_patch(beg, end, replacement);
+        return std::move(*this);
+    }
+
+    void add_replacement_patch(
+        std::size_t byte_beg,
+        std::size_t byte_end,
+        std::string_view replacement
+    ) {
+        patches_.push_back(Patch::replacement(
+            normalize_location(byte_beg),
+            normalize_location(byte_end),
+            replacement
+        ));
+    }
+
+    auto with_replacement_patch(
+        std::size_t byte_beg,
+        std::size_t byte_end,
+        std::string_view replacement
+    ) & -> AnnotatedSource& {
+        add_replacement_patch(byte_beg, byte_end, replacement);
+        return *this;
+    }
+
+    auto with_replacement_patch(
+        std::size_t byte_beg,
+        std::size_t byte_end,
+        std::string_view replacement
+    ) && -> AnnotatedSource&& {
+        add_replacement_patch(byte_beg, byte_end, replacement);
+        return std::move(*this);
+    }
+
 private:
     /// The source code to be annotated.
     std::string_view source_;
@@ -581,6 +1005,8 @@ private:
     std::vector<LabeledSpan> primary_spans_;
     /// A collection of secondary spans. They will be rendered with specific symbol (e.g. ---).
     std::vector<LabeledSpan> secondary_spans_;
+    /// A collection of patches, which represent suggested modifications to the source code.
+    std::vector<Patch> patches_;
     /// Caches the offset of the first byte of each line in the entire source code (`source_`). It
     /// is used to quickly find a line of source code when rendering diagnostic information.
     ///

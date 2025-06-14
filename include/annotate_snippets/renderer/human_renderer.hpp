@@ -129,10 +129,82 @@ public:
         ///     100 | bar(abc + def)
         AlignRight,
     } line_num_alignment = AlignRight;
+    /// Represents whether to render the line numbers before or after applying the patch.
+    ///
+    /// When a patch is applied, it may change the line numbers of subsequent patches. For example,
+    /// consider the following code:
+    ///
+    ///     int main() {
+    ///         Type var = 3;
+    ///         Type var2 = val;
+    ///     }
+    ///
+    /// Suppose the user wants to add two patches to the above code: the first patch adds a line
+    /// `using Type = int;` before the second line, and the second patch modifies `val` to `var` in
+    /// the third line. The first patch introduces a new line, which causes the line numbers of the
+    /// second patch to change. The explicit line numbers before and after applying the patches are
+    /// as follows:
+    ///
+    ///     0 0 | int main() {
+    ///       1 +     using Type = int;
+    ///     1 2 |     Type var = 3;
+    ///     2 3 ~     Type var2 = var;
+    ///     3 4 | }
+    ///
+    /// When rendering the second patch in `Inline` style, we only render the modified content and
+    /// underline the modified part:
+    ///
+    ///     3 ~     Type var2 = var;
+    ///       |
+    ///
+    /// This option controls which line numbers to display in such cases. If `BeforePatch` is used,
+    /// the line number before applying the patch (2 in this case) will be displayed; otherwise, the
+    /// line number after applying the patch (3 in this case) will be displayed.
+    ///
+    /// Note that this option only affects the rendering of line numbers in `Inline` style and for
+    /// lines that have not been modified. For `Diff` style rendering, the deleted lines always use
+    /// the line numbers before the patch, and the added lines always use the line numbers after the
+    /// patch.
+    enum PatchLineNumMode : std::uint8_t {
+        /// Renders the line numbers before applying the patch.
+        BeforePatch,
+        /// Renders the line numbers after applying the patch.
+        AfterPatch,
+    } line_num_patch_mode = AfterPatch;
+    /// Represents the maximum length of a single-line replacement patch that will be rendered as
+    /// `Inline` style. If the length of the replacement string exceeds this value, the patch will
+    /// be rendered as `Diff` style, otherwise it will be rendered as `Inline` style.
+    ///
+    /// This parameter only applies to single-line replacement patches, i.e., patches that satisfy
+    /// the following three conditions:
+    /// 1. `patch.is_replacement()` returns `true`;
+    /// 2. `patch.location_begin().line == patch.location_end().line`;
+    /// 3. `patch.replacement()` does not contain any newline characters.
+    ///
+    /// The length `l` is defined as `max(patch.replacement().size(), patch.location_end().col -
+    /// patch.location_begin().col)`. If `l` is greater than this value, the patch will be rendered
+    /// as `Diff` style, otherwise it will be rendered as `Inline` style.
+    unsigned max_inline_style_single_line_replacement_length = 5;
+    /// Represents the character used to form the underline for an addition patch when rendered in
+    /// `Inline` style. When rendered in `Diff` style, this character is used as the line number
+    /// separator for added lines. This character's display width must be 1.
+    char addition_marker = '+';
+    /// Represents the character used to form the underline for a deletion patch when rendered in
+    /// `Inline` style. When rendered in `Diff` style, this character is used as the line number
+    /// separator for deleted lines. This character's display width must be 1.
+    char deletion_marker = '-';
+    /// Represents the character used to form the underline for a replacement patch when rendered in
+    /// `Inline` style. This character's display width must be 1.
+    char replacement_marker = '~';
 
     /// Renders `diag` to a `StyledString` and returns the rendering result.
     template <class Level>
     auto render_diag(Diag<Level> diag) const -> StyledString {
+        // Sort all patches associated with the sources in `diag`. This is necessary because when we
+        // compute the maximum width of line numbers, we need to rely on the sorted order of patches
+        // to determine the maximum line number that may be involved.
+        sort_patches(diag);
+
         StyledString render_target;
         unsigned const max_line_num_len = compute_max_line_num_len(diag);
 
@@ -160,6 +232,11 @@ public:
         class StyleSheet = PlainTextStyleSheet,
         std::enable_if_t<is_style_sheet<StyleSheet, Level>, int> = 0>
     void render_diag(std::ostream& out, Diag<Level> diag, StyleSheet style_sheet = {}) const {
+        // Sort all patches associated with the sources in `diag`. This is necessary because when we
+        // compute the maximum width of line numbers, we need to rely on the sorted order of patches
+        // to determine the maximum line number that may be involved.
+        sort_patches(diag);
+
         unsigned const max_line_num_len = compute_max_line_num_len(diag);
 
         // Render the primary diagnostic entry.
@@ -185,15 +262,16 @@ public:
         unsigned max_line_num_len,
         bool is_secondary
     ) const {
-        // If all associated source codes of the current diagnostic entry have no annotations, or if
-        // it is not associated with any source code (if `diag_entry.associated_source()` is empty,
-        // then `std::any_of` returns `false`), then the current diagnostic entry does not need to
-        // render annotations.
+        // If all associated source codes of the current diagnostic entry have no annotations and
+        // patches, or if it is not associated with any source code (if
+        // `diag_entry.associated_source()` is empty, then `std::any_of` returns `false`), then the
+        // current diagnostic entry does not need to render annotations.
         bool const has_annotation = std::any_of(
             diag_entry.associated_sources().begin(),
             diag_entry.associated_sources().end(),
             [](AnnotatedSource const& source) {
-                return !source.primary_spans().empty() || !source.secondary_spans().empty();
+                return !source.primary_spans().empty() || !source.secondary_spans().empty()
+                    || !source.patches().empty();
             }
         );
 
@@ -267,31 +345,59 @@ public:
     }
 
 private:
+    /// Sorts all patches associated with the sources in `diag`. Patches are sorted by their
+    /// starting position (`location_begin()`). This ensures that we can apply the patches in sorted
+    /// order to get the correct modified result.
+    template <class Level>
+    void sort_patches(Diag<Level>& diag) const {
+        for (AnnotatedSource& source : diag.primary_diag_entry().associated_sources()) {
+            std::sort(
+                source.patches().begin(),
+                source.patches().end(),
+                [](Patch const& lhs, Patch const& rhs) {
+                    return lhs.location_begin() < rhs.location_begin();
+                }
+            );
+        }
+
+        for (DiagEntry<Level>& entry : diag.secondary_diag_entries()) {
+            for (AnnotatedSource& source : entry.associated_sources()) {
+                std::sort(
+                    source.patches().begin(),
+                    source.patches().end(),
+                    [](Patch const& lhs, Patch const& rhs) {
+                        return lhs.location_begin() < rhs.location_begin();
+                    }
+                );
+            }
+        }
+    }
+
     /// Calculates the maximum space required to display all annotated line numbers contained in
     /// `source`.
-    auto compute_max_line_num_len(AnnotatedSource const& source) const -> unsigned;
+    auto compute_max_line_num_len(AnnotatedSource& source) const -> unsigned;
 
     /// Calculates the maximum space required to display the line numbers for rendering `diag`.
     template <class Level>
-    auto compute_max_line_num_len(Diag<Level> const& diag) const -> unsigned {
+    auto compute_max_line_num_len(Diag<Level>& diag) const -> unsigned {
         if (ui_testing) {
             return static_cast<unsigned>(anonymized_line_num.size());
         }
 
-        auto const source_trans = [&](AnnotatedSource const& source) {
+        auto const source_trans = [&](AnnotatedSource& source) {
             return compute_max_line_num_len(source);
         };
 
         unsigned result = 0;
 
         // Primary diag entry.
-        for (AnnotatedSource const& source : diag.primary_diag_entry().associated_sources()) {
+        for (AnnotatedSource& source : diag.primary_diag_entry().associated_sources()) {
             result = std::max(result, compute_max_line_num_len(source));
         }
 
         // Secondary diag entries.
-        for (DiagEntry<Level> const& entry : diag.secondary_diag_entries()) {
-            for (AnnotatedSource const& source : entry.associated_sources()) {
+        for (DiagEntry<Level>& entry : diag.secondary_diag_entries()) {
+            for (AnnotatedSource& source : entry.associated_sources()) {
                 result = std::max(result, compute_max_line_num_len(source));
             }
         }

@@ -69,8 +69,10 @@ public:
         Highlight,
         /// Represents the style of texts to be added when rendering fix suggestions.
         Addition,
-        /// Represents the style of texts to be removed when rendering fix suggestions.
-        Removal,
+        /// Represents the style of texts to be deleted when rendering fix suggestions.
+        Deletion,
+        /// Represents the style of texts to be replaced when rendering fix suggestions.
+        Replacement,
     };
 
     constexpr Style() : style_(0) { }

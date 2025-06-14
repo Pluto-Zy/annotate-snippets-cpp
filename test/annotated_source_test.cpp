@@ -534,4 +534,89 @@ TEST(AnnotatedSourceTest, LineContent) {
         EXPECT_EQ(source.line_content(7), "");
     }
 }
+
+TEST(AnnotatedSourceTest, NormalizeLocation) {
+#define CHECK_BYTE_OFFSET(byte_offset, line, loc)                                                  \
+    EXPECT_EQ(as.normalize_location(byte_offset), (ants::SourceLocation { line, loc }))
+#define CHECK_LINE_COL(input_line, input_col, expected_line, expected_col)                         \
+    EXPECT_EQ(                                                                                     \
+        as.normalize_location(ants::SourceLocation { input_line, input_col }),                     \
+        (ants::SourceLocation { expected_line, expected_col })                                     \
+    )
+
+    {
+        ants::AnnotatedSource as("ab\ncd\ne");
+        CHECK_BYTE_OFFSET(0, 0, 0);
+        CHECK_BYTE_OFFSET(1, 0, 1);
+        CHECK_BYTE_OFFSET(2, 0, 2);
+        CHECK_BYTE_OFFSET(3, 1, 0);
+        CHECK_BYTE_OFFSET(4, 1, 1);
+        CHECK_BYTE_OFFSET(5, 1, 2);
+        CHECK_BYTE_OFFSET(6, 2, 0);
+        CHECK_BYTE_OFFSET(7, 2, 1);
+        CHECK_BYTE_OFFSET(8, 3, 0);
+        CHECK_BYTE_OFFSET(9, 3, 0);
+        CHECK_BYTE_OFFSET(42, 3, 0);
+
+        CHECK_LINE_COL(0, 0, 0, 0);
+        CHECK_LINE_COL(1, 1, 1, 1);
+        CHECK_LINE_COL(0, 2, 0, 2);
+        CHECK_LINE_COL(0, 3, 1, 0);
+        CHECK_LINE_COL(0, 4, 1, 0);
+        CHECK_LINE_COL(1, 2, 1, 2);
+        CHECK_LINE_COL(1, 3, 2, 0);
+        CHECK_LINE_COL(1, 4, 2, 0);
+        CHECK_LINE_COL(2, 0, 2, 0);
+        CHECK_LINE_COL(2, 1, 2, 1);
+        CHECK_LINE_COL(2, 2, 3, 0);
+        CHECK_LINE_COL(3, 0, 3, 0);
+        CHECK_LINE_COL(4, 2, 3, 0);
+    }
+
+    {
+        ants::AnnotatedSource as("");
+        CHECK_BYTE_OFFSET(0, 0, 0);
+        CHECK_BYTE_OFFSET(1, 1, 0);
+        CHECK_LINE_COL(0, 0, 0, 0);
+        CHECK_LINE_COL(1, 0, 1, 0);
+        CHECK_LINE_COL(0, 1, 1, 0);
+    }
+
+    {
+        ants::AnnotatedSource as("abc");
+        CHECK_BYTE_OFFSET(0, 0, 0);
+        CHECK_BYTE_OFFSET(1, 0, 1);
+        CHECK_BYTE_OFFSET(2, 0, 2);
+        CHECK_BYTE_OFFSET(3, 0, 3);
+        CHECK_BYTE_OFFSET(4, 1, 0);
+
+        CHECK_LINE_COL(0, 0, 0, 0);
+        CHECK_LINE_COL(0, 1, 0, 1);
+        CHECK_LINE_COL(0, 2, 0, 2);
+        CHECK_LINE_COL(0, 3, 0, 3);
+        CHECK_LINE_COL(0, 4, 1, 0);
+        CHECK_LINE_COL(1, 0, 1, 0);
+        CHECK_LINE_COL(2, 0, 1, 0);
+    }
+
+    {
+        ants::AnnotatedSource as("ab\n");
+        CHECK_BYTE_OFFSET(0, 0, 0);
+        CHECK_BYTE_OFFSET(1, 0, 1);
+        CHECK_BYTE_OFFSET(2, 0, 2);
+        CHECK_BYTE_OFFSET(3, 1, 0);
+        CHECK_BYTE_OFFSET(4, 1, 0);
+
+        CHECK_LINE_COL(0, 0, 0, 0);
+        CHECK_LINE_COL(0, 1, 0, 1);
+        CHECK_LINE_COL(0, 2, 0, 2);
+        CHECK_LINE_COL(0, 3, 1, 0);
+        CHECK_LINE_COL(0, 4, 1, 0);
+        CHECK_LINE_COL(1, 0, 1, 0);
+        CHECK_LINE_COL(2, 0, 1, 0);
+    }
+
+#undef CHECK_LINE_COL
+#undef CHECK_BYTE_OFFSET
+}
 }  // namespace

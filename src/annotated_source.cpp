@@ -292,6 +292,30 @@ auto AnnotatedSource::byte_offset_to_line_col(std::size_t byte_offset) -> Source
     };
 }
 
+auto AnnotatedSource::normalize_location(SourceLocation loc) -> SourceLocation {
+    // The location of the first byte of the specified line.
+    std::size_t const line_start = line_offset(loc.line);
+    // The location of the first byte of the next line.
+    std::size_t const next_line_start = line_offset(loc.line + 1);
+
+    if (loc.col >= next_line_start - line_start) {
+        // If the column exceeds the number of characters in the line, we return the start of the
+        // next line.
+        //
+        // We use `byte_offset_to_line_col()` to generate the result, rather than returning
+        // `SourceLocation { loc.line + 1, 0 }`, because the next line may not exist, and
+        // `byte_offset_to_line_col()` will return the position of the end of the source code in
+        // this case.
+        return byte_offset_to_line_col(next_line_start);
+    } else {
+        return loc;
+    }
+}
+
+auto AnnotatedSource::normalize_location(std::size_t byte_offset) -> SourceLocation {
+    return byte_offset_to_line_col(std::min(byte_offset, source_.size() + 1));
+}
+
 auto AnnotatedSource::line_content(unsigned line) -> std::string_view {
     std::size_t const line_start = line_offset(line);
     std::size_t const line_end = line_offset(line + 1);
@@ -303,5 +327,45 @@ auto AnnotatedSource::line_content(unsigned line) -> std::string_view {
         // Remove the trailing '\n' or '\r\n'.
         return remove_final_newline(result);
     }
+}
+
+auto LabeledSpan::adjust(AnnotatedSource& source) const -> LabeledSpan {
+    LabeledSpan result = *this;
+
+    // We handle empty annotation ranges specially. In some cases, a user may want to annotate a
+    // single character but provides an empty range (i.e., `result.beg` and `result.end` are equal),
+    // for example, when attempting to annotate EOF, the front end may not provide a position like
+    // `EOF + 1`. Therefore, we modify empty ranges here to annotate a single character.
+    if (result.beg == result.end) {
+        ++result.end.col;
+    }
+
+    // Sometimes we will extend the annotation to the end of a line. In the user interface, since we
+    // allow users to specify the range of bytes annotated (rather than line and column numbers),
+    // `result.end` will be set to the position right after the last character of this line. This
+    // causes `result.end` to actually point to the first character of the next line, rather than a
+    // non-existent character right after the newline character of the current line. Similarly,
+    // since we always consider EOF (or any position beyond the valid byte range of the source code)
+    // to belong to a hypothetical line after the last line, the same situation can occur: the user
+    // intends to annotate EOF, but `result.end` points to some position in a hypothetical line.
+    //
+    // Therefore, when `result.end` points to the start of a line, we adjust it to point to a
+    // non-existent character right after the last character of the previous line. This does not
+    // affect the rendering result but allows us to correctly determine the properties of the
+    // annotation, such as preventing us from incorrectly judging a single-line annotation as a
+    // multi-line annotation.
+    if (result.end.col == 0) {
+        // To get the end position of the previous line, we calculate the offsets of the first
+        // characters of the previous line and the current line respectively. This may involve
+        // caching, but it does not introduce unnecessary calculations, as our results will also be
+        // used again when rendering actual code lines.
+        std::size_t const prev_line_start = source.line_offset(result.end.line - 1);
+        std::size_t const cur_line_start = source.line_offset(result.end.line);
+
+        result.end.col = static_cast<unsigned>(cur_line_start - prev_line_start);
+        --result.end.line;
+    }
+
+    return result;
 }
 }  // namespace ants

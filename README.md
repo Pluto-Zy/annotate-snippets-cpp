@@ -4,7 +4,7 @@
 
 `annotate-snippests` is a C++ library that can generate diagnostic information output similar to the Rust compiler [`rustc`](https://github.com/rust-lang/rust). `annotate-snippets` can add any number of annotations to one or more source codes. Our algorithm and carefully designed rules can correctly and beautifully handle the overlap and arrangement of annotations.
 
-![demo1](https://github.com/user-attachments/assets/4b5895ab-17f4-4912-b55e-1e814c2b4817)
+![demo1](https://github.com/user-attachments/assets/3a83ed83-5dfd-4fca-ae67-073e2a8b1174)
 
 > [!NOTE]
 > `annotate-snippets` is still under development and the documentation is not yet complete. We are working hard to improve the stability and usability of the library. If you encounter any problems or have any suggestions, please feel free to open an issue.
@@ -130,25 +130,44 @@ source.add_secondary_annotation(45, 50, "secondary label");
 By replacing all `add_*` with `with_*`, you can chain annotations while constructing `AnnotatedSource`:
 ```c++
 auto source = ants::AnnotatedSource(code, "main.cpp")
-    .with_annotation(5, 9)
-    .with_annotation(30, 34, "name")
+    .with_annotation(30, 34)
+    .with_annotation(5, 9, "name")
     .with_annotation(ants::SourceLocation {0, 0}, ants::SourceLocation {0, 4})
     .with_annotation(
         ants::SourceLocation {0, 19},
         ants::SourceLocation {2, 1},
         "function body"
     )
-    .with_secondary_annotation(30, 34, "secondary label");
+    .with_secondary_annotation(45, 50, "secondary label");
 ```
 
-### 3. Build a Diagnostic Entry
+### 3. Add Fix Suggestions
+
+Many compilers provide fix suggestions for erroneous user code. In `annotate-snippets`, you can supply a series of fix patches to an `AnnotatedSource`:
+
+```c++
+// Construct an `AnnotatedSource` object with source code and file name. `code` is the string
+// defined above.
+ants::AnnotatedSource fixed_source(code, "main.cpp");
+// Replace the characters between byte 0 and byte 4 (i.e., `auto`) with `int`.
+fixed_source.add_replacement_patch(0, 4, "int");
+// Delete the characters between byte 11 and byte 18 (i.e., ` -> int`).
+fixed_source.add_deletion_patch(11, 18);
+// Insert two punctuation marks into the string.
+fixed_source.add_addition_patch(ants::SourceLocation {1, 23}, ",");
+fixed_source.add_addition_patch(ants::SourceLocation {1, 29}, "!");
+```
+
+We provide three types of patching interfaces: addition, deletion, and replacement. Just like when adding annotations, all interfaces support specifying the patch range either by byte offsets or via `SourceLocation`. All interfaces also support chaining calls using corresponding `with_*` methods.
+
+### 4. Build a Diagnostic Entry
 
 After adding annotations to the source code, you need to construct an `ants::Diag` object to package the diagnostic information:
 ```c++
 #include <annotate_snippets/diag.hpp>
 #include <utility>
 
-// Construct `source` as described above...
+// Construct `source` and `fixed_source` as described above...
 
 // Construct a diagnostic entry. This diagnostic has a warning level and a title message.
 ants::Diag diag(Level::Warning, "warning message");
@@ -161,14 +180,17 @@ auto diag = ants::Diag(Level::Warning, "warning message")
     .with_source(std::move(source));
 ```
 
-You can add sub-diagnostic entries to include diagnostic messages of different levels in one diagnostic message. For example, a common scenario is that we need to supplement an `error` or `warning` message with a `note` or `help` message:
+You can add sub-diagnostic entries to include diagnostic messages of different levels in one diagnostic message. You can supplement an `error` or `warning` message with a `note` or `help` message. You can also add the fix suggestions you defined above as a sub-diagnostic entry with `help` level:
 ```c++
 auto diag = ants::Diag(Level::Warning, "warning message")
     .with_source(std::move(source))
-    .with_sub_diag_entry(Level::Note, "note something");
+    .with_sub_diag_entry(Level::Note, "note something")
+    .with_sub_diag_entry(
+        ants::DiagEntry(Level::Help, "help something").with_source(std::move(fixed_source))
+    );
 ```
 
-### 4. Render Diagnostic Entries
+### 5. Render Diagnostic Entries
 
 You can use `ants::HumanRenderer` to render the packaged `diag` to the console:
 ```c++
@@ -181,7 +203,7 @@ ants::HumanRenderer().render_diag(std::cout, std::move(diag));
 You will get the following rendering output:
 ```
 warning: warning message
- --> main.cpp:1:6
+ --> main.cpp:2:10
   |
 1 |   auto main() -> int {
   |   ^^^^ ^^^^ name     ^
@@ -191,6 +213,13 @@ warning: warning message
 3 | | }
   | |_^ function body
   = note: note something
+help: help something
+ --> main.cpp
+  |
+1 - auto main() -> int {
+1 + int main() {
+2 |     std::cout << "Hello, World!\n";
+  |                        +      +
 ```
 
 You will notice that the rendering result displayed on the console is colorless. To get color-rich console text output, you need to provide a style sheet to `HumenRenderer` to guide it on how to output each part of the text in what style.
@@ -199,20 +228,21 @@ The style sheet is a callable object. It takes `ants::Style` and your defined `L
 ```c++
 auto const style_sheet = [](ants::Style const& style, Level level) -> ants::StyleSpec {
     switch (style.as_predefined_style()) {
-    // For line numbers and secondary underlines and labels, display them in bright blue bold text.
     case ants::Style::LineNumber:
     case ants::Style::SecondaryUnderline:
     case ants::Style::SecondaryLabel:
+        // For line numbers, secondary underlines and labels, display them in bright blue bold text.
         return ants::StyleSpec::BrightBlue + ants::StyleSpec::Bold;
-    // For primary messages, display them in bold text.
     case ants::Style::PrimaryMessage:
+        // For primary messages, display them in bold text.
         return ants::StyleSpec::Default + ants::StyleSpec::Bold;
-    // For primary underlines and labels, as well as diagnostic level titles, their text style
-    // depends on the level of the current diagnostic entry.
+
     case ants::Style::PrimaryTitle:
     case ants::Style::SecondaryTitle:
     case ants::Style::PrimaryUnderline:
     case ants::Style::PrimaryLabel: {
+        // For primary underlines and labels, as well as diagnostic level titles, their text style
+        // depends on the level of the current diagnostic entry.
         ants::StyleSpec const color = [&] {
             switch (level) {
             case Level::Fatal:
@@ -231,16 +261,28 @@ auto const style_sheet = [](ants::Style const& style, Level level) -> ants::Styl
 
         return color + ants::StyleSpec::Bold;
     }
+
+    case ants::Style::Addition:
+        // For addition patches, display them in bright green text.
+        return ants::StyleSpec::BrightGreen;
+    case ants::Style::Deletion:
+        // For deletion patches, display them in bright red text.
+        return ants::StyleSpec::BrightRed;
+    case ants::Style::Replacement:
+        // For replacement patches, display them in bright yellow text.
+        return ants::StyleSpec::BrightYellow;
+
     default:
         return {};
-}
+    }
+};
 
 // Render diagnostic information with the defined style sheet.
 ants::HumanRenderer().render_diag(std::cout, std::move(diag), style_sheet);
 ```
 We will get the following output:
 
-![demo2](https://github.com/user-attachments/assets/841a57a2-d3d9-40e7-a3c5-6ed0decfd546)
+![demo2](https://github.com/user-attachments/assets/c6bfcfd3-9d35-48d2-b602-c83bb046a1f5)
 
 > [!TIP]
 > Defining such a style sheet seems to be challenging for novice users. Perhaps we can provide a predefined style sheet. For now, you can directly copy the style sheet above for use.
