@@ -2988,6 +2988,16 @@ public:
         StyledString underline_line;
 
         for (PatchSnippet const& patch : associated_patches) {
+            if (patch.col_beg.display == patch.col_end.display) {
+                // If the start and end positions of the highlighted range are the same, it means
+                // that this patch does not highlight any text in this line. We skip this patch.
+                //
+                // It's necessary to check this condition, since we will use `set_styled_content()`
+                // to render the underline for patches that is rendered with the `Inline` style,
+                // which will add unnecessary spaces if the annotated range is empty.
+                continue;
+            }
+
             // Convert the `PatchSnippet::Kind` to a `Style` object. The style is used to render the
             // highlighted portion of the patch.
             Style const style = [&] {
@@ -3033,8 +3043,12 @@ public:
 
         // Append the code line to the render target. Don't forget to add a space between the line
         // number separator and the code line.
-        render_target.append_spaces(1);
-        render_target.append(code_line.styled_line_parts().front());
+        auto const& styled_parts = code_line.styled_line_parts();
+        // Note that if `code_line` is an empty line, `styled_line_parts()` returns an empty list.
+        if (!styled_parts.empty()) {
+            render_target.append_spaces(1);
+            render_target.append(styled_parts.front());
+        }
 
         // For lines rendered with the `Inline` style, we also append the underline line to the
         // render target.

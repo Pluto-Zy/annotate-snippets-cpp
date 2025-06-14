@@ -313,7 +313,7 @@ auto AnnotatedSource::normalize_location(SourceLocation loc) -> SourceLocation {
 }
 
 auto AnnotatedSource::normalize_location(std::size_t byte_offset) -> SourceLocation {
-    return byte_offset_to_line_col(std::min(byte_offset, source_.size()));
+    return byte_offset_to_line_col(std::min(byte_offset, source_.size() + 1));
 }
 
 auto AnnotatedSource::line_content(unsigned line) -> std::string_view {
