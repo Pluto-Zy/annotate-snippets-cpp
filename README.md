@@ -282,7 +282,7 @@ ants::HumanRenderer().render_diag(std::cout, std::move(diag), style_sheet);
 ```
 We will get the following output:
 
-![demo2](https://github.com/user-attachments/assets/4f270255-71c3-4e0e-a7c8-47715ef5697c)
+![demo2](https://github.com/user-attachments/assets/c6bfcfd3-9d35-48d2-b602-c83bb046a1f5)
 
 > [!TIP]
 > Defining such a style sheet seems to be challenging for novice users. Perhaps we can provide a predefined style sheet. For now, you can directly copy the style sheet above for use.
