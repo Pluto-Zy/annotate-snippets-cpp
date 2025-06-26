@@ -941,7 +941,10 @@ private:
 /// Represents an annotated line of source code.
 struct AnnotatedLine {
     /// The source code of the line.
-    std::string_view source_line;
+    ///
+    /// Here we use `std::string` instead of `std::string_view` because we normalize the source code
+    /// line and store it here during the annotation processing.
+    std::string source_line;
     /// All annotations associated with the current source line.
     std::vector<Annotation> annotations;
     /// The display width of the current source line (after normalization).
@@ -1063,8 +1066,7 @@ struct AnnotatedLine {
             max_line_num_len,
             line_num,
             depth_num,
-            human_renderer.line_num_alignment,
-            human_renderer.display_tab_width
+            human_renderer.line_num_alignment
         );
         render_target.append(source_code_line.styled_line_parts().front());
 
@@ -1375,8 +1377,7 @@ private:
         unsigned max_line_num_len,
         unsigned line_num,
         unsigned depth_num,
-        HumanRenderer::LineNumAlignment line_num_alignment,
-        unsigned display_tab_width
+        HumanRenderer::LineNumAlignment line_num_alignment
     ) const -> StyledString {
         // Determine where to draw the vertical line "|" indicating the body of a multiline
         // annotation before the source code line. The following 2 scenarios require us to draw "|"
@@ -1463,10 +1464,7 @@ private:
             // Insert the source code line. Note that we always insert a space before the source
             // code line.
             render_target.append_spaces(1);
-            render_target.append(  //
-                normalize_source(source_line, display_tab_width),
-                Style::SourceCode
-            );
+            render_target.append(source_line, Style::SourceCode);
         }
 
         return render_target;
@@ -1930,8 +1928,8 @@ private:
                 continue;
             }
 
-            // Assigns the source code line.
-            annotated_line.source_line = source.line_content(line_no);
+            // The source line for the current line number.
+            std::string_view const source_line = source.line_content(line_no);
 
             // Collect all columns to be processed.
             //
@@ -1950,27 +1948,35 @@ private:
 
             // We also need to include the length of the source line in `col_display` so that we can
             // calculate the display width of the source line simultaneously.
-            col_display.emplace(static_cast<unsigned>(annotated_line.source_line.size()), 0u);
+            col_display.emplace(static_cast<unsigned>(source_line.size()), 0u);
 
-            unsigned display_width = 0, chunk_begin = 0;
+            unsigned display_width = 0, last_pos = 0;
             for (auto& [byte, display] : col_display) {
-                std::string const normalized_source_chunk = normalize_source(
-                    annotated_line.source_line.substr(chunk_begin, byte - chunk_begin),
+                // We normalize the source code chunk between [last_pos, byte) and append it to
+                // `annotated_line.source_line`. We need to keep track of the length of the
+                // normalized string before and after normalization to correctly extract the source
+                // code chunk for this normalization.
+                std::size_t const chunk_begin = annotated_line.source_line.size();
+                normalize_source(
+                    annotated_line.source_line,
+                    source_line.substr(last_pos, byte - last_pos),
                     display_tab_width
                 );
-                display_width +=
-                    static_cast<unsigned>(detail::display_width(normalized_source_chunk));
 
-                if (byte > annotated_line.source_line.size()) {
-                    // If `byte` exceeds the length of `annotated_line.source_line`, the user is
-                    // attempting to annotate characters that do not exist in this line. We allow
-                    // this, as the user might be annotating the end of this line to indicate
-                    // something is missing. We treat these non-existent characters as spaces.
-                    display_width +=
-                        byte - static_cast<unsigned>(annotated_line.source_line.size());
-                    chunk_begin = static_cast<unsigned>(annotated_line.source_line.size());
+                display_width += static_cast<unsigned>(detail::display_width(
+                    // Use `std::string_view` to avoid unnecessary string copies.
+                    static_cast<std::string_view>(annotated_line.source_line).substr(chunk_begin)
+                ));
+
+                if (byte > source_line.size()) {
+                    // If `byte` exceeds the length of `source_line`, the user is attempting to
+                    // annotate characters that do not exist in this line. We allow this, as the
+                    // user might be annotating the end of this line to indicate something is
+                    // missing. We treat these non-existent characters as spaces.
+                    last_pos = static_cast<unsigned>(source_line.size());
+                    display_width += byte - last_pos;
                 } else {
-                    chunk_begin = byte;
+                    last_pos = byte;
                 }
 
                 display = display_width;
@@ -1999,7 +2005,7 @@ private:
 
             // Calculate the display width of the source line.
             annotated_line.line_display_width =
-                col_display.find(static_cast<unsigned>(annotated_line.source_line.size()))->second;
+                col_display.find(static_cast<unsigned>(source_line.size()))->second;
         }
     }
 
@@ -2909,7 +2915,7 @@ public:
     }
 
     void append(std::string_view content, unsigned display_tab_width) {
-        line_content.append(normalize_source(content, display_tab_width));
+        normalize_source(line_content, content, display_tab_width);
     }
 
     void append(std::string_view content, unsigned display_tab_width, PatchSnippet::Kind kind) {
