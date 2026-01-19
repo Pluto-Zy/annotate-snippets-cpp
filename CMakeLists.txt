@@ -53,7 +53,9 @@ target_compile_options(annotate_snippets
         $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
 )
 
-target_link_libraries(annotate_snippets PRIVATE rang)
+# Link `rang` as a private dependency. Since it is only used in the implementation files, consumers
+# do not need to be aware of it.
+target_link_libraries(annotate_snippets PRIVATE $<BUILD_INTERFACE:rang>)
 target_compile_features(annotate_snippets PUBLIC cxx_std_17)
 
 add_library(ants::annotate_snippets ALIAS annotate_snippets)
@@ -67,7 +69,7 @@ if (INSTALL_ANNOTATE_SNIPPETS)
     set(ANNOTATE_SNIPPETS_CMAKE_INSTALL_PATH "${CMAKE_INSTALL_LIBDIR}/cmake/annotate-snippets")
 
     # Installation setup
-    install(TARGETS annotate_snippets rang
+    install(TARGETS annotate_snippets
         EXPORT annotate-snippets-targets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
