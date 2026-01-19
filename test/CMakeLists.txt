@@ -1,4 +1,12 @@
-include(AddGoogleTest)
+CPMAddPackage(
+    URI "gh:google/googletest@1.14.0"
+    OPTIONS
+        # We don't expect to install googletest along with the project.
+        "INSTALL_GTEST OFF"
+        # For Windows: Prevent overriding the parent project's compiler/linker settings
+        "gtest_force_shared_crt ON"
+)
+include(GoogleTest)
 
 add_executable(annotate_snippets_tests
     styled_string_view_test.cpp
