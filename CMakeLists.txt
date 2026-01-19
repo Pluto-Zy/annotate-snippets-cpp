@@ -32,7 +32,7 @@ option(
 option(INSTALL_ANNOTATE_SNIPPETS "Enable installation of the annotate-snippets project." ON)
 
 include(CPM)
-CPMAddPackage("gh:agauniyal/rang#v3.2")
+CPMAddPackage(URI "gh:agauniyal/rang#v3.2" DOWNLOAD_ONLY ON)
 
 add_library(annotate_snippets
     src/annotated_source.cpp
@@ -45,6 +45,8 @@ target_include_directories(annotate_snippets
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
+    PRIVATE
+        $<BUILD_INTERFACE:${rang_SOURCE_DIR}/include>
 )
 
 target_compile_options(annotate_snippets
@@ -53,9 +55,6 @@ target_compile_options(annotate_snippets
         $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
 )
 
-# Link `rang` as a private dependency. Since it is only used in the implementation files, consumers
-# do not need to be aware of it.
-target_link_libraries(annotate_snippets PRIVATE $<BUILD_INTERFACE:rang>)
 target_compile_features(annotate_snippets PUBLIC cxx_std_17)
 
 add_library(ants::annotate_snippets ALIAS annotate_snippets)
