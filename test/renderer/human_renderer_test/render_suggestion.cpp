@@ -1,5 +1,6 @@
 #include "annotate_snippets/annotated_source.hpp"
 #include "annotate_snippets/diag.hpp"
+#include "annotate_snippets/patch.hpp"
 #include "annotate_snippets/renderer/human_renderer.hpp"
 #include "level_for_test.hpp"
 

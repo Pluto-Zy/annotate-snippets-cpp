@@ -1,6 +1,7 @@
 #include "annotate_snippets/annotated_source.hpp"
 #include "annotate_snippets/diag.hpp"
 #include "annotate_snippets/renderer/human_renderer.hpp"
+#include "annotate_snippets/source_location.hpp"
 #include "annotate_snippets/styled_string_view.hpp"
 #include "level_for_test.hpp"
 

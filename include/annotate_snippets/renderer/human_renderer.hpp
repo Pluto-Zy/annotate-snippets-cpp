@@ -6,6 +6,7 @@
 #include "annotate_snippets/detail/diag/level.hpp"
 #include "annotate_snippets/detail/styled_string_impl.hpp"
 #include "annotate_snippets/diag.hpp"
+#include "annotate_snippets/patch.hpp"
 #include "annotate_snippets/style.hpp"
 #include "annotate_snippets/style_spec.hpp"
 #include "annotate_snippets/styled_string.hpp"
@@ -178,12 +179,12 @@ public:
     /// This parameter only applies to single-line replacement patches, i.e., patches that satisfy
     /// the following three conditions:
     /// 1. `patch.is_replacement()` returns `true`;
-    /// 2. `patch.location_begin().line == patch.location_end().line`;
+    /// 2. `patch.location_begin().line() == patch.location_end().line()`;
     /// 3. `patch.replacement()` does not contain any newline characters.
     ///
-    /// The length `l` is defined as `max(patch.replacement().size(), patch.location_end().col -
-    /// patch.location_begin().col)`. If `l` is greater than this value, the patch will be rendered
-    /// as `Diff` style, otherwise it will be rendered as `Inline` style.
+    /// The length `l` is defined as `max(patch.replacement().size(), patch.location_end().col() -
+    /// patch.location_begin().col())`. If `l` is greater than this value, the patch will be
+    /// rendered as `Diff` style, otherwise it will be rendered as `Inline` style.
     unsigned max_inline_style_single_line_replacement_length = 5;
     /// Represents the character used to form the underline for an addition patch when rendered in
     /// `Inline` style. When rendered in `Diff` style, this character is used as the line number
@@ -200,13 +201,10 @@ public:
     /// Renders `diag` to a `StyledString` and returns the rendering result.
     template <class Level>
     auto render_diag(Diag<Level> diag) const -> StyledString {
-        // Sort all patches associated with the sources in `diag`. This is necessary because when we
-        // compute the maximum width of line numbers, we need to rely on the sorted order of patches
-        // to determine the maximum line number that may be involved.
-        sort_patches(diag);
-
         StyledString render_target;
-        unsigned const max_line_num_len = compute_max_line_num_len(diag);
+
+        // Prepare the diagnostic information before rendering.
+        unsigned const max_line_num_len = setup_diag(diag);
 
         // Render the primary diagnostic entry.
         render_diag_entry(
@@ -232,12 +230,8 @@ public:
         class StyleSheet = PlainTextStyleSheet,
         std::enable_if_t<is_style_sheet<StyleSheet, Level>, int> = 0>
     void render_diag(std::ostream& out, Diag<Level> diag, StyleSheet style_sheet = {}) const {
-        // Sort all patches associated with the sources in `diag`. This is necessary because when we
-        // compute the maximum width of line numbers, we need to rely on the sorted order of patches
-        // to determine the maximum line number that may be involved.
-        sort_patches(diag);
-
-        unsigned const max_line_num_len = compute_max_line_num_len(diag);
+        // Prepare the diagnostic information before rendering.
+        unsigned const max_line_num_len = setup_diag(diag);
 
         // Render the primary diagnostic entry.
         render_diag_entry(
@@ -345,32 +339,52 @@ public:
     }
 
 private:
-    /// Sorts all patches associated with the sources in `diag`. Patches are sorted by their
-    /// starting position (`location_begin()`). This ensures that we can apply the patches in sorted
-    /// order to get the correct modified result.
+    /// This function is called before rendering diagnostic information to ensure that all necessary
+    /// information is computed and complete. Specifically, it performs the following tasks:
+    /// - Resolves and normalizes all annotation and patch locations in all associated source code
+    ///   objects within the diagnostic information.
+    /// - Sorts the patches in each source code object based on their starting positions.
+    /// - Computes and caches the number of lines occupied by the replacement content of each patch.
+    /// - Returns the maximum width required to display all annotated line numbers contained in the
+    ///   diagnostic information.
     template <class Level>
-    void sort_patches(Diag<Level>& diag) const {
-        for (AnnotatedSource& source : diag.primary_diag_entry().associated_sources()) {
-            std::sort(
-                source.patches().begin(),
-                source.patches().end(),
-                [](Patch const& lhs, Patch const& rhs) {
-                    return lhs.location_begin() < rhs.location_begin();
-                }
-            );
-        }
-
-        for (DiagEntry<Level>& entry : diag.secondary_diag_entries()) {
+    auto setup_diag(Diag<Level>& diag) const -> unsigned {
+        // A helper function to process a single diagnostic entry.
+        auto const process_entry = [](auto& entry) {
             for (AnnotatedSource& source : entry.associated_sources()) {
+                // Resolve and normalize all annotation and patch locations in `source`.
+                source.resolve_and_normalize_locations();
+                // Sort all patches in `source` based on their starting positions. Note that when we
+                // reach here, the location information in the patches has already been resolved, so
+                // it is safe to access `byte_offset()`.
                 std::sort(
                     source.patches().begin(),
                     source.patches().end(),
                     [](Patch const& lhs, Patch const& rhs) {
-                        return lhs.location_begin() < rhs.location_begin();
+                        return lhs.location_begin().byte_offset()
+                            < rhs.location_begin().byte_offset();
                     }
                 );
+                // Compute and cache the number of lines in the replacement content of each patch.
+                for (Patch& patch : source.patches()) {
+                    patch.compute_replacement_lines();
+                }
             }
-        }
+        };
+
+        // Process the primary diagnostic entry.
+        process_entry(diag.primary_diag_entry());
+
+        // Process all secondary diagnostic entries.
+        auto&& secondary_entries = diag.secondary_diag_entries();
+        std::for_each(secondary_entries.begin(), secondary_entries.end(), process_entry);
+
+        // Compute and return the maximum width required to display all annotated line numbers
+        // contained in `diag`.
+        //
+        // It must be the final step of this function since it relies on the information prepared in
+        // the previous steps.
+        return compute_max_line_num_len(diag);
     }
 
     /// Calculates the maximum space required to display all annotated line numbers contained in

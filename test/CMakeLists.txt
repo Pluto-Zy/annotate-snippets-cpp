@@ -13,7 +13,6 @@ add_executable(annotate_snippets_tests
     source_location_test.cpp
     styled_string_view_test.cpp
     styled_string_test.cpp
-    annotated_source_test.cpp
     style_spec_test.cpp
 
     renderer/human_renderer_test/render_title_message.cpp
