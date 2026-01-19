@@ -13,7 +13,7 @@
 
 There are 3 ways to use `annotate-snippets` in CMake projects:
 
-+ You can fetch `annotate-snippets` from GitHub using `FetchContent` and add it as a dependency to your CMake project:
+- You can fetch `annotate-snippets` from GitHub using `FetchContent` and add it as a dependency to your CMake project:
 
   ```cmake
   include(FetchContent)
@@ -26,20 +26,22 @@ There are 3 ways to use `annotate-snippets` in CMake projects:
   FetchContent_MakeAvailable(annotate-snippets)
   ```
 
-+ You can also include the source code of `annotate-snippets` as a part of your project (e.g., through `git submodule`) and use `add_subdirectory()` to include it:
+- You can also include the source code of `annotate-snippets` as a part of your project (e.g., through `git submodule`) and use `add_subdirectory()` to include it:
 
   ```cmake
   add_subdirectory(annotate_snippets_folder)
   ```
 
-+ You can also use `find_package()` to include `annotate-snippets`:
+- You can also use `find_package()` to include `annotate-snippets`:
 
   ```cmake
   find_package(annotate-snippets REQUIRED)
   ```
+
   To use this method, you may need to build and install `annotate-snippets` in advance.
 
 Regardless of which method you use, you need to link `annotate-snippets` to your project:
+
 ```cmake
 target_link_libraries(your_target PRIVATE ants::annotate_snippets)
 ```
@@ -54,6 +56,7 @@ target_link_libraries(your_target PRIVATE ants::annotate_snippets)
 `annotate-snippets` does not provide predefined diagnostic levels because different users may need different sets of diagnostic levels. For example, some users may need to include the `Bug` level in the set, while others may need to include the `Info` level in the set.
 
 The simplest way to define your own set of diagnostic levels is to define an `enum`:
+
 ```c++
 enum class Level {
     Fatal,
@@ -64,7 +67,9 @@ enum class Level {
     SomethingIWant,
 };
 ```
+
 You can define your own `Level` enumeration arbitrarily. Then you need to define a function `title()` that converts `Level` to a string, and `annotate-snippets` will use this function to convert `Level` to the diagnostic level title printed on the screen:
+
 ```c++
 auto title(Level level) -> char const* {
     switch (level) {
@@ -85,11 +90,13 @@ auto title(Level level) -> char const* {
     }
 }
 ```
+
 You need to ensure that this function is visible to `annotate-snippets`, for example, through [argument-dependent lookup](https://en.cppreference.com/w/cpp/language/adl). In this example, the simplest way is to place this function after the definition of `Level`.
 
 ### 2. Add Annotations to Source Code
 
 You can associate source code and file names with the `ants::AnnotatedSource` object:
+
 ```c++
 #include <annotate_snippets/annotated_source.hpp>
 
@@ -119,6 +126,7 @@ source.add_annotation(
 // annotation is "---".
 source.add_secondary_annotation(45, 50, "secondary label");
 ```
+
 `AnnotatedSource` provides many interfaces for adding annotations to source code. Regardless of which interface you use, you must specify the range to be annotated. You can specify the offset of the annotated range in the entire source code, as the first two `add_annotation()` calls do. You can also use `ants::SourceLocation` to specify the line number and column number of the range to be annotated. When adding an annotation, you can also provide a label for the annotation, which will be rendered near the annotation.
 
 > [!NOTE]
@@ -128,6 +136,7 @@ source.add_secondary_annotation(45, 50, "secondary label");
 > Please note that `annotate-snippets` does not own either the source code or the label strings you specify for the annotations (such as the strings `"name"`, `"function body"`, etc.), as only references to these strings are stored internally in the library. You must ensure that these strings remain valid until the rendering is complete. For example, if you choose to temporarily store `Diag` objects and delay rendering, you need to ensure that the strings you provide are also stored in data structures such as string pools.
 
 By replacing all `add_*` with `with_*`, you can chain annotations while constructing `AnnotatedSource`:
+
 ```c++
 auto source = ants::AnnotatedSource(code, "main.cpp")
     .with_annotation(30, 34)
@@ -163,6 +172,7 @@ We provide three types of patching interfaces: addition, deletion, and replaceme
 ### 4. Build a Diagnostic Entry
 
 After adding annotations to the source code, you need to construct an `ants::Diag` object to package the diagnostic information:
+
 ```c++
 #include <annotate_snippets/diag.hpp>
 #include <utility>
@@ -174,13 +184,16 @@ ants::Diag diag(Level::Warning, "warning message");
 // Add annotated source code to `diag`.
 diag.add_source(std::move(source));
 ```
+
 Similarly, you can chain the source code by using `with_source()`:
+
 ```c++
 auto diag = ants::Diag(Level::Warning, "warning message")
     .with_source(std::move(source));
 ```
 
 You can add sub-diagnostic entries to include diagnostic messages of different levels in one diagnostic message. You can supplement an `error` or `warning` message with a `note` or `help` message. You can also add the fix suggestions you defined above as a sub-diagnostic entry with `help` level:
+
 ```c++
 auto diag = ants::Diag(Level::Warning, "warning message")
     .with_source(std::move(source))
@@ -193,6 +206,7 @@ auto diag = ants::Diag(Level::Warning, "warning message")
 ### 5. Render Diagnostic Entries
 
 You can use `ants::HumanRenderer` to render the packaged `diag` to the console:
+
 ```c++
 #include <annotate_snippets/renderer/human_renderer.hpp>
 #include <iostream>
@@ -200,7 +214,9 @@ You can use `ants::HumanRenderer` to render the packaged `diag` to the console:
 // Render `diag` to `std::cout`.
 ants::HumanRenderer().render_diag(std::cout, std::move(diag));
 ```
+
 You will get the following rendering output:
+
 ```
 warning: warning message
  --> main.cpp:2:10
@@ -225,6 +241,7 @@ help: help something
 You will notice that the rendering result displayed on the console is colorless. To get color-rich console text output, you need to provide a style sheet to `HumenRenderer` to guide it on how to output each part of the text in what style.
 
 The style sheet is a callable object. It takes `ants::Style` and your defined `Level` and returns `ants::StyleSpec` to indicate how to render the text in the `Style` style when the level is `Level`. For example, the following style sheet definition allows us to render diagnostic information in a color style close to `rustc`:
+
 ```c++
 auto const style_sheet = [](ants::Style const& style, Level level) -> ants::StyleSpec {
     switch (style.as_predefined_style()) {
@@ -280,6 +297,7 @@ auto const style_sheet = [](ants::Style const& style, Level level) -> ants::Styl
 // Render diagnostic information with the defined style sheet.
 ants::HumanRenderer().render_diag(std::cout, std::move(diag), style_sheet);
 ```
+
 We will get the following output:
 
 ![demo2](https://github.com/user-attachments/assets/c6bfcfd3-9d35-48d2-b602-c83bb046a1f5)
@@ -290,6 +308,7 @@ We will get the following output:
 ## Build and Install from Source Code
 
 To install `annotate-snippets` in your system or run the unit tests of `annotate-snippets`, you need to build and install `annotate-snippets` from the source code:
+
 ```shell
 # Clone the source code from GitHub
 git clone https://github.com/Pluto-Zy/annotate-snippets-cpp.git
@@ -300,9 +319,11 @@ cd build
 # Build
 cmake --build .
 ```
+
 By default, unit tests will be built together. If you do not want to build unit tests, you can disable unit tests by `-DANNOTATE_SNIPPETS_ENABLE_TESTING=OFF`.
 
 After the build is complete, you can run the unit tests and install:
+
 ```shell
 # Run unit tests
 ctest --output-on-failure
