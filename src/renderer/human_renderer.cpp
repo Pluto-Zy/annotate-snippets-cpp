@@ -3,6 +3,8 @@
 #include "annotate_snippets/annotated_source.hpp"
 #include "annotate_snippets/detail/styled_string_impl.hpp"
 #include "annotate_snippets/detail/unicode_display_width.hpp"
+#include "annotate_snippets/patch.hpp"
+#include "annotate_snippets/source_location.hpp"
 #include "annotate_snippets/style.hpp"
 #include "annotate_snippets/styled_string.hpp"
 #include "annotate_snippets/styled_string_view.hpp"
@@ -59,7 +61,9 @@ enum class PatchStyle {
 /// Determines the rendering style of a patch based on the parameters set in `renderer` and the
 /// properties of `patch`.
 auto determine_patch_style(HumanRenderer const& renderer, Patch const& patch) -> PatchStyle {
-    if (patch.location_begin().line != patch.location_end().line || patch.replacement_lines() > 1) {
+    if (patch.location_begin().line() != patch.location_end().line()
+        || patch.replacement_lines() > 1)
+    {
         // If the patch spans multiple lines or contains newlines in the replacement, it is rendered
         // in diff style.
         return PatchStyle::Diff;
@@ -73,7 +77,7 @@ auto determine_patch_style(HumanRenderer const& renderer, Patch const& patch) ->
     if (patch.is_replacement()) {
         unsigned const replacement_size = std::max(
             static_cast<unsigned>(patch.replacement().size()),
-            patch.location_end().col - patch.location_begin().col
+            patch.location_end().col() - patch.location_begin().col()
         );
 
         return replacement_size > renderer.max_inline_style_single_line_replacement_length
@@ -96,8 +100,8 @@ struct PatchAffectedLineRange {
     ///
     /// A patch consumes (deletes) a range of lines and generates new lines. We use a pair of line
     /// numbers to represent which lines are affected. The consumed lines are those from
-    /// `patch.location_begin().line` to `patch.location_end().line`, while the generated lines are
-    /// those in the result after applying the patch.
+    /// `patch.location_begin().line()` to `patch.location_end().line()`, while the generated lines
+    /// are those in the result after applying the patch.
     ///
     /// For example:
     ///
@@ -115,10 +119,10 @@ struct PatchAffectedLineRange {
     /// ==============
     ///
     /// To make it easier to describe, we decompose the modified source code into lines [l0, l1,
-    /// ..., ln], where l0 is the line `patch.location_begin().line` and ln is the line
-    /// `patch.location_end().line`. For the example above, we have [l0 = 0, l1 = 1]. Similarly, we
-    /// decompose `patch.replacement()` into lines [r0, r1, ..., rm]. For the example above, we have
-    /// [r0 = 0, r1 = 1, r2 = 2].
+    /// ..., ln], where l0 is the line `patch.location_begin().line()` and ln is the line
+    /// `patch.location_end().line()`. For the example above, we have [l0 = 0, l1 = 1]. Similarly,
+    /// we decompose `patch.replacement()` into lines [r0, r1, ..., rm]. For the example above, we
+    /// have [r0 = 0, r1 = 1, r2 = 2].
     ///
     /// To determine which lines will be modified, we consider the result after applying the patch.
     /// After applying the patch, we get these lines [a0, r1, r2, ..., am], where a0 is composed of
@@ -193,13 +197,14 @@ struct PatchAffectedLineRange {
         bool const replacement_last_line_empty =
             patch.replacement().empty() || patch.replacement().back() == '\n';
         // The content of the first line of the original code, i.e., l0.
-        std::string_view const source_first_line = source.line_content(patch.location_begin().line);
+        std::string_view const source_first_line =
+            source.line_content(patch.location_begin().line());
         // The content of the last line of the original code, i.e., ln.
-        std::string_view const source_last_line = source.line_content(patch.location_end().line);
+        std::string_view const source_last_line = source.line_content(patch.location_end().line());
 
         // clang-format off
         PatchAffectedLineRange result {
-            /*consumed_lines=*/ { 0u, patch.location_end().line - patch.location_begin().line + 1 },
+            /*consumed_lines=*/ { 0u, patch.location_end().line() - patch.location_begin().line() + 1 },
             /*generated_lines=*/ { 0u, patch.replacement_lines() },
         };
         // clang-format on
@@ -212,21 +217,21 @@ struct PatchAffectedLineRange {
                 // iff r0 is empty, and either:
                 // - l0 participates completely, and ln does not participate at all; or
                 // - l0 does not participate at all, and ln participates completely.
-                if (patch.location_begin().col >= source_first_line.size()
-                    && patch.location_end().col >= source_last_line.size())
+                if (patch.location_begin().col() >= source_first_line.size()
+                    && patch.location_end().col() >= source_last_line.size())
                 {
                     // All lines between `patch.location_begin()` and `patch.location_end()` will be
-                    // deleted, so they will not participate in forming a0. If
-                    // `patch.location_begin().col` exceeds the length of l0, then l0 participates
-                    // completely. If `patch.location_end().col` exceeds the length of ln, then ln
-                    // does not participate at all.
+                    // deleted, so they will not participate in forming a0. If the length of
+                    // `patch.location_begin().col()` exceeds l0, then l0 participates completely.
+                    // If the length of `patch.location_end().col()` exceeds ln, then ln does not
+                    // participate at all.
                     //
                     // In this case, we do not consume l0, and a0 is not generated.
                     ++result.consumed_lines.first;
                     ++result.generated_lines.first;
-                } else if (patch.location_begin().col == 0 && patch.location_end().col == 0) {
-                    // If `patch.location_begin().col` is 0, then l0 does not participate at all. If
-                    // `patch.location_end().col` is 0, then ln participates completely.
+                } else if (patch.location_begin().col() == 0 && patch.location_end().col() == 0) {
+                    // If `patch.location_begin().col()` is 0, then l0 does not participate at all.
+                    // If `patch.location_end().col()` is 0, then ln participates completely.
                     //
                     // In this case, we do not consume ln, and a0 is not generated.
                     --result.consumed_lines.second;
@@ -235,9 +240,9 @@ struct PatchAffectedLineRange {
             } else {
                 // If m is not 0 (i.e., `patch.replacement_lines()` is greater than 1), then a0 and
                 // l0 are the same iff a0 is composed of the complete content of l0 and an empty r0.
-                if (patch.location_begin().col >= source_first_line.size()) {
-                    // If `patch.location_begin().col` is 0, then l0 participates completely. If
-                    // `patch.location_end().col` exceeds the length of l0, then a0 is composed of
+                if (patch.location_begin().col() >= source_first_line.size()) {
+                    // If `patch.location_begin().col()` is 0, then l0 participates completely. If
+                    // `patch.location_end().col()` exceeds the length of l0, then a0 is composed of
                     // the complete content of l0 and an empty r0.
                     //
                     // In this case, we do not consume l0, and a0 is not generated.
@@ -252,8 +257,8 @@ struct PatchAffectedLineRange {
             // is 0 (i.e., `patch.replacement_lines()` is 1), then r0 and rm are the same line. The
             // relevant checks have already been performed above, so we do not repeat the same
             // process.
-            if (patch.location_end().col == 0) {
-                // If `patch.location_end().col` is 0, then ln participates completely. In this
+            if (patch.location_end().col() == 0) {
+                // If `patch.location_end().col()` is 0, then ln participates completely. In this
                 // case, we do not consume ln, and am is not generated.
                 --result.consumed_lines.second;
                 --result.generated_lines.second;
@@ -290,7 +295,7 @@ auto compute_max_line_num_of_patches(  //
                 // The maximum line number involved in `patch` before applying it. Minus 1 because
                 // `consumed_lines.second` is open.
                 unsigned const line_num_before_patch =
-                    patch.location_begin().line + consumed_lines.second - 1;
+                    patch.location_begin().line() + consumed_lines.second - 1;
                 result = std::max(result, line_num_before_patch);
             }
 
@@ -301,7 +306,7 @@ auto compute_max_line_num_of_patches(  //
                 // The maximum line number involved in `patch` after applying it. Minus 1 because
                 // `generated_lines.second` is open.
                 unsigned const line_num_after_patch =
-                    patch.location_begin().line + line_offset + generated_lines.second - 1;
+                    patch.location_begin().line() + line_offset + generated_lines.second - 1;
                 result = std::max(result, line_num_after_patch);
             }
         } else {
@@ -312,10 +317,10 @@ auto compute_max_line_num_of_patches(  //
             // span multiple lines or replace the span by multiple lines.
             if (renderer.line_num_patch_mode == HumanRenderer::PatchLineNumMode::BeforePatch) {
                 // We are rendering the line number before applying the patch.
-                result = std::max(result, patch.location_begin().line);
+                result = std::max(result, patch.location_begin().line());
             } else {
                 // We are rendering the line number after applying the patch.
-                result = std::max(result, patch.location_begin().line + line_offset);
+                result = std::max(result, patch.location_begin().line() + line_offset);
             }
         }
 
@@ -323,7 +328,7 @@ auto compute_max_line_num_of_patches(  //
         // code, and then add the user-specified new content.
 
         // The number of lines to be deleted by `patch`.
-        unsigned const deleted_lines = patch.location_end().line - patch.location_begin().line;
+        unsigned const deleted_lines = patch.location_end().line() - patch.location_begin().line();
         // The number of lines to be added by `patch`. Minus 1 to match the way `deleted_lines` is
         // calculated.
         unsigned const added_lines = patch.replacement_lines() - 1;
@@ -353,13 +358,13 @@ auto HumanRenderer::compute_max_line_num_len(AnnotatedSource& source) const -> u
     unsigned result = 0;
     // Primary annotations are always displayed.
     for (LabeledSpan const& span : source.primary_spans()) {
-        result = std::max(result, span.end.line);
+        result = std::max(result, span.end.line());
     }
 
     if (!short_message) {
         // Secondary annotations are only displayed if `short_message` is `false`.
         for (LabeledSpan const& span : source.secondary_spans()) {
-            result = std::max(result, span.end.line);
+            result = std::max(result, span.end.line());
         }
 
         // Patches are only displayed if `short_message` is `false`.
@@ -488,12 +493,12 @@ auto HumanRenderer::render_file_line_col_short_message(
         }
 
         // Render the file name.
-        render_target.append(source.origin(), Style::OriginAndLocation);
+        render_target.append(source.name(), Style::OriginAndLocation);
         render_target.append(":", Style::OriginAndLocation);
 
         SourceLocation const loc = source.primary_spans().front().beg;
-        std::string const line = std::to_string(loc.line + source.first_line_number());
-        std::string const col = std::to_string(loc.col + 1);
+        std::string const line = std::to_string(loc.line() + source.first_line_number());
+        std::string const col = std::to_string(loc.col() + 1);
 
         // Render the line number and column number.
         render_target.append(line, Style::OriginAndLocation);
@@ -506,7 +511,7 @@ auto HumanRenderer::render_file_line_col_short_message(
         // Compute the width of the part already rendered. Since we've also drawn one ": " and two
         // ':', we need to add 4.
         final_width = static_cast<unsigned>(
-            detail::display_width(source.origin()) + line.size() + col.size() + 4
+            detail::display_width(source.name()) + line.size() + col.size() + 4
         );
         ++idx;
     }
@@ -578,14 +583,14 @@ void render_file_line_col(
     }
 
     // Render the file name.
-    render_target.append(source.origin(), Style::OriginAndLocation);
+    render_target.append(source.name(), Style::OriginAndLocation);
 
     if (!source.primary_spans().empty()) {
         render_target.append(":", Style::OriginAndLocation);
 
         SourceLocation const loc = source.primary_spans().front().beg;
-        std::string const line = std::to_string(loc.line + source.first_line_number());
-        std::string const col = std::to_string(loc.col + 1);
+        std::string const line = std::to_string(loc.line() + source.first_line_number());
+        std::string const col = std::to_string(loc.col() + 1);
 
         // Render the line number and column number.
         render_target.append(line, Style::OriginAndLocation);
@@ -769,8 +774,8 @@ struct Annotation {
     static auto from_single_line_span(LabeledSpan const& span, bool is_primary) -> Annotation {
         return {
             /*label=*/span.label,
-            /*col_beg=*/span.beg.col,
-            /*col_end=*/span.end.col,
+            /*col_beg=*/span.beg.col(),
+            /*col_end=*/span.end.col(),
             /*type=*/Annotation::SingleLine,
             is_primary,
         };
@@ -784,7 +789,7 @@ struct Annotation {
             /*col_beg=*/annotation.depth,
             // `col_end` points to the position right after the last byte annotated, so we need to
             // add 1 here.
-            /*col_end=*/annotation.beg.col + 1,
+            /*col_end=*/annotation.beg.col() + 1,
             /*type=*/Annotation::MultilineHead,
             /*is_primary=*/annotation.is_primary,
         };
@@ -796,7 +801,7 @@ struct Annotation {
         return {
             /*label=*/annotation.label,
             /*col_beg=*/annotation.depth,
-            /*col_end=*/annotation.end.col,
+            /*col_end=*/annotation.end.col(),
             /*type=*/Annotation::MultilineTail,
             /*is_primary=*/annotation.is_primary,
         };
@@ -1556,8 +1561,8 @@ private:
     /// Since this function consumes `span`, the parameter passed to it should not be used after the
     /// function ends.
     void add_span(LabeledSpan&& span, bool is_primary) {
-        if (span.beg.line == span.end.line) {
-            lines_[span.beg.line].annotations.push_back(
+        if (span.beg.line() == span.end.line()) {
+            lines_[span.beg.line()].annotations.push_back(
                 Annotation::from_single_line_span(span, is_primary)
             );
         } else {
@@ -1585,10 +1590,10 @@ private:
         // Convert `MultilineAnnotation` into `Annotation`.
         for (MultilineAnnotation const& annotation : multiline_annotations_) {
             // We need to split the `MultilineAnnotation` into 3 parts.
-            lines_[annotation.beg.line].annotations.push_back(
+            lines_[annotation.beg.line()].annotations.push_back(
                 Annotation::from_multiline_head(annotation)
             );
-            lines_[annotation.end.line].annotations.push_back(
+            lines_[annotation.end.line()].annotations.push_back(
                 Annotation::from_multiline_tail(annotation)
             );
 
@@ -1596,9 +1601,9 @@ private:
             // character also needs to be rendered in the end line, we do not consider the end line
             // as `MultilineBody`.
             //
-            // For multi-line annotations we have `annotation.beg.line != annotation.end.line`, so
-            // here we can safely add 1 here.
-            for (unsigned line = annotation.beg.line + 1; line != annotation.end.line; ++line) {
+            // For multi-line annotations we have `annotation.beg.line() != annotation.end.line()`,
+            // so here we can safely add 1 here.
+            for (unsigned line = annotation.beg.line() + 1; line != annotation.end.line(); ++line) {
                 lines_[line].annotations.push_back(Annotation::from_multiline_body(annotation));
             }
         }
@@ -1692,8 +1697,8 @@ private:
             multiline_annotations_.begin(),
             multiline_annotations_.end(),
             [](MultilineAnnotation const& lhs, MultilineAnnotation const& rhs) {
-                return std::tie(lhs.beg.line, rhs.end.line, lhs.beg.col, lhs.end.col)
-                    < std::tie(rhs.beg.line, lhs.end.line, rhs.beg.col, rhs.end.col);
+                return std::make_tuple(lhs.beg.line(), rhs.end.line(), lhs.beg.col(), lhs.end.col())
+                    < std::make_tuple(rhs.beg.line(), lhs.end.line(), rhs.beg.col(), rhs.end.col());
             }
         );
 
@@ -1716,10 +1721,10 @@ private:
             auto overlap(Vertex const& other) const -> bool {
                 // We assume that `associated_annotations` in both vertices is non-empty, and that
                 // all elements in `associated_annotations` of a `Vertex` have the same line range.
-                unsigned const self_line_beg = associated_annotations.first->beg.line;
-                unsigned const self_line_end = associated_annotations.first->end.line;
-                unsigned const other_line_beg = other.associated_annotations.first->beg.line;
-                unsigned const other_line_end = other.associated_annotations.first->end.line;
+                unsigned const self_line_beg = associated_annotations.first->beg.line();
+                unsigned const self_line_end = associated_annotations.first->end.line();
+                unsigned const other_line_beg = other.associated_annotations.first->beg.line();
+                unsigned const other_line_end = other.associated_annotations.first->end.line();
 
                 // Note that for line numbers, the interval (e.g., [`self_line_beg`,
                 // `self_line_end`]) is inclusive on both ends.
@@ -3437,27 +3442,28 @@ private:
         Patch const& patch
     ) const -> std::vector<PatchedLine> {
         std::vector<PatchedLine> results;
-        results.reserve(patch.location_end().line - patch.location_begin().line + 1);
+        results.reserve(patch.location_end().line() - patch.location_begin().line() + 1);
 
-        if (patch.location_begin().line == patch.location_end().line) {
-            std::string_view const line_content = source_.line_content(patch.location_begin().line);
+        if (patch.location_begin().line() == patch.location_end().line()) {
+            std::string_view const line_content =
+                source_.line_content(patch.location_begin().line());
             results.emplace_back(
                 PatchedLine::Normal,
-                patch.location_begin().line + source_.first_line_number(),
-                line_content.substr(0, patch.location_begin().col),
+                patch.location_begin().line() + source_.first_line_number(),
+                line_content.substr(0, patch.location_begin().col()),
                 renderer_.display_tab_width
             );
             // If the patch only modifies a single line, we need to add the highlight annotation for
             // the modified range:
             //
             //     func(args)
-            //          ^   ^ patch.location_end().col
+            //          ^   ^ patch.location_end().col()
             //          |
-            //          patch.location_begin().col
+            //          patch.location_begin().col()
             results.back().append(
                 line_content.substr(
-                    patch.location_begin().col,
-                    patch.location_end().col - patch.location_begin().col
+                    patch.location_begin().col(),
+                    patch.location_end().col() - patch.location_begin().col()
                 ),
                 renderer_.display_tab_width,
                 // Use `Deletion` style because the characters in this range will be replaced by
@@ -3466,42 +3472,43 @@ private:
             );
             // Append the remaining content of the line after the patch.
             results.back().append(  //
-                line_content.substr(patch.location_end().col),
+                line_content.substr(patch.location_end().col()),
                 renderer_.display_tab_width
             );
         } else {
             // If the patch modifies multiple lines, we need to handle the first and last lines
             // specially:
             //
-            //     0 | if (cond) {                     <- For the first line, the annotation
-            //       |    ^ patch.location_begin().col    range is from `patch.location_begin().col`
-            //       |                                    to the end of the line.
+            //     0 | if (cond) {                     <- For the first line, the annotation range
+            //       |    ^ patch.location_begin().col()  is from `patch.location_begin().col()` to
+            //       |                                    the end of the line.
             //       |
             //     1 |     stmt;                       <- For the middle lines, the annotation range
             //       |                                    is from the start of the line to the end
             //       |                                    of the line.
             //       |
             //     2 | }                               <- For the last line, the annotation range is
-            //       | ^ patch.location_end().col         from the start of the line to
-            //       |                                    `patch.location_end().col`.
+            //       | ^ patch.location_end().col()       from the start of the line to
+            //       |                                    `patch.location_end().col()`.
 
             // The first line.
             std::string_view const first_line_content =
-                source_.line_content(patch.location_begin().line);
+                source_.line_content(patch.location_begin().line());
             results.emplace_back(
                 PatchedLine::Normal,
-                patch.location_begin().line + source_.first_line_number(),
-                first_line_content.substr(0, patch.location_begin().col),
+                patch.location_begin().line() + source_.first_line_number(),
+                first_line_content.substr(0, patch.location_begin().col()),
                 renderer_.display_tab_width
             );
             results.back().append(
-                first_line_content.substr(patch.location_begin().col),
+                first_line_content.substr(patch.location_begin().col()),
                 renderer_.display_tab_width,
                 PatchSnippet::Deletion
             );
 
             // The middle lines.
-            for (unsigned i = patch.location_begin().line + 1; i != patch.location_end().line; ++i)
+            for (unsigned i = patch.location_begin().line() + 1; i != patch.location_end().line();
+                 ++i)
             {
                 results.emplace_back(
                     PatchedLine::Normal,
@@ -3514,16 +3521,16 @@ private:
 
             // The last line.
             std::string_view const last_line_content =
-                source_.line_content(patch.location_end().line);
+                source_.line_content(patch.location_end().line());
             results.emplace_back(
                 PatchedLine::Normal,
-                patch.location_end().line + source_.first_line_number(),
-                last_line_content.substr(0, patch.location_end().col),
+                patch.location_end().line() + source_.first_line_number(),
+                last_line_content.substr(0, patch.location_end().col()),
                 PatchSnippet::Deletion,
                 renderer_.display_tab_width
             );
             results.back().append(
-                last_line_content.substr(patch.location_end().col),
+                last_line_content.substr(patch.location_end().col()),
                 renderer_.display_tab_width
             );
         }
@@ -3564,7 +3571,7 @@ private:
         std::vector<PatchedLine> results;
         results.reserve(patch.replacement_lines());
 
-        if (unconsumed_line != patch.location_begin().line) {
+        if (unconsumed_line != patch.location_begin().line()) {
             // If the starting line of the patch is not the same as the current unconsumed line, it
             // means that the `unconsumed_line` has been fully constructed. We will add the
             // remaining unconsumed characters of this line to `cur_patched_line` and move
@@ -3575,7 +3582,7 @@ private:
             );
 
             // Update `unconsumed_*`.
-            unconsumed_line = patch.location_begin().line;
+            unconsumed_line = patch.location_begin().line();
             unconsumed_col = 0;
             unconsumed_source = source_.line_content(unconsumed_line);
 
@@ -3599,11 +3606,11 @@ private:
             );
         }
 
-        // For now, `unconsumed_line` and `patch.location_begin().line` point to the same line. We
-        // add the characters from `unconsumed_col` to `patch.location_begin().col` to
+        // For now, `unconsumed_line` and `patch.location_begin().line()` point to the same line. We
+        // add the characters from `unconsumed_col` to `patch.location_begin().col()` to
         // `cur_patched_line`.
         cur_patched_line.append(
-            unconsumed_source.substr(unconsumed_col, patch.location_begin().col - unconsumed_col),
+            unconsumed_source.substr(unconsumed_col, patch.location_begin().col() - unconsumed_col),
             renderer_.display_tab_width
         );
 
@@ -3651,14 +3658,14 @@ private:
         // For now, all lines in `patch.replacement()` have been added to `cur_patched_line`. We
         // need to update the `unconsumed_*` variables so that they can be used after the function
         // exits.
-        unconsumed_line = patch.location_end().line;
-        unconsumed_col = patch.location_end().col;
+        unconsumed_line = patch.location_end().line();
+        unconsumed_col = patch.location_end().col();
         unconsumed_source = source_.line_content(unconsumed_line);
         // `patch.replacement_lines()` is the number of lines generated by the patch, and
-        // `patch.location_end().line - patch.location_begin().line + 1` is the number of lines
+        // `patch.location_end().line() - patch.location_begin().line() + 1` is the number of lines
         // consumed by the patch.
         line_offset += patch.replacement_lines()
-            - (patch.location_end().line - patch.location_begin().line + 1);
+            - (patch.location_end().line() - patch.location_begin().line() + 1);
 
         return results;
     }
@@ -3669,9 +3676,9 @@ private:
         }
 
         // The line number of the line being processed in the source code, which is the end line of
-        // the previous patch (`patch.location_end().line`). For the first patch, this value is the
-        // starting line of the first patch.
-        unsigned unconsumed_line = source_.patches().front().location_begin().line;
+        // the previous patch (`patch.location_end().line()`). For the first patch, this value is
+        // the starting line of the first patch.
+        unsigned unconsumed_line = source_.patches().front().location_begin().line();
         // The column number of the first unconsumed character in the current line being processed.
         unsigned unconsumed_col = 0;
         // The current line being processed in the source code.
