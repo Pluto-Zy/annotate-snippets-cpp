@@ -31,7 +31,8 @@ option(
 )
 option(INSTALL_ANNOTATE_SNIPPETS "Enable installation of the annotate-snippets project." ON)
 
-include(AddRang)
+include(CPM)
+CPMAddPackage("gh:agauniyal/rang#v3.2")
 
 add_library(annotate_snippets
     src/annotated_source.cpp
@@ -52,7 +53,7 @@ target_compile_options(annotate_snippets
         $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
 )
 
-target_link_libraries(annotate_snippets PRIVATE rang::rang)
+target_link_libraries(annotate_snippets PRIVATE rang)
 target_compile_features(annotate_snippets PUBLIC cxx_std_17)
 
 add_library(ants::annotate_snippets ALIAS annotate_snippets)
