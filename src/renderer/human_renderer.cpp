@@ -493,20 +493,20 @@ auto HumanRenderer::render_file_line_col_short_message(
         }
 
         // Render the file name.
-        render_target.append(source.name(), Style::OriginAndLocation);
-        render_target.append(":", Style::OriginAndLocation);
+        render_target.append(source.name(), Style::NameAndLocation);
+        render_target.append(":", Style::NameAndLocation);
 
         SourceLocation const loc = source.primary_spans().front().beg;
         std::string const line = std::to_string(loc.line() + source.first_line_number());
         std::string const col = std::to_string(loc.col() + 1);
 
         // Render the line number and column number.
-        render_target.append(line, Style::OriginAndLocation);
-        render_target.append(":", Style::OriginAndLocation);
-        render_target.append(col, Style::OriginAndLocation);
+        render_target.append(line, Style::NameAndLocation);
+        render_target.append(":", Style::NameAndLocation);
+        render_target.append(col, Style::NameAndLocation);
 
         // When rendering a short message, we need to additionally render a ": " at the end.
-        render_target.append(": ", Style::OriginAndLocation);
+        render_target.append(": ", Style::NameAndLocation);
 
         // Compute the width of the part already rendered. Since we've also drawn one ": " and two
         // ':', we need to add 4.
@@ -583,19 +583,19 @@ void render_file_line_col(
     }
 
     // Render the file name.
-    render_target.append(source.name(), Style::OriginAndLocation);
+    render_target.append(source.name(), Style::NameAndLocation);
 
     if (!source.primary_spans().empty()) {
-        render_target.append(":", Style::OriginAndLocation);
+        render_target.append(":", Style::NameAndLocation);
 
         SourceLocation const loc = source.primary_spans().front().beg;
         std::string const line = std::to_string(loc.line() + source.first_line_number());
         std::string const col = std::to_string(loc.col() + 1);
 
         // Render the line number and column number.
-        render_target.append(line, Style::OriginAndLocation);
-        render_target.append(":", Style::OriginAndLocation);
-        render_target.append(col, Style::OriginAndLocation);
+        render_target.append(line, Style::NameAndLocation);
+        render_target.append(":", Style::NameAndLocation);
+        render_target.append(col, Style::NameAndLocation);
     }
 }
 

@@ -34,9 +34,9 @@ public:
         /// Represents the rendering style of the title messages of all secondary diagnostic
         /// messages, that is, the text following the title describing the error message.
         SecondaryMessage,
-        /// Represents the rendering style of the combination of origin and location in the
+        /// Represents the rendering style of the combination of file name and location in the
         /// diagnostic message. For example, "--> main.cpp:3:5".
-        OriginAndLocation,
+        NameAndLocation,
         /// Represents the rendering style of line numbers and line number separators. For example,
         /// "23 |".
         LineNumber,
