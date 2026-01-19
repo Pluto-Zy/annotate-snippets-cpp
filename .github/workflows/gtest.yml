@@ -10,10 +10,10 @@ jobs:
   build-ubuntu:
     strategy:
       matrix:
-        os: [ ubuntu-22.04 ]
-        compiler: [ g++-9, g++-11, g++-13, clang++-11, clang++-15, clang++-20 ]
-        build_type: [ Debug, Release ]
-        libcxx: [ false, true ]
+        os: [ubuntu-22.04]
+        compiler: [g++-9, g++-11, g++-13, clang++-11, clang++-15, clang++-20]
+        build_type: [Debug, Release]
+        libcxx: [false, true]
         exclude:
           - compiler: g++-9
             libcxx: true
@@ -67,16 +67,16 @@ jobs:
 
       - name: Configure CMake
         run: |
-            cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
-                  -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
-                  -DCMAKE_CXX_STANDARD=17 \
-                  -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
+          cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
+                -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                -DCMAKE_CXX_STANDARD=17 \
+                -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
 
       - name: Build
         run: |
-            threads=`nproc`
-            cmake --build "${{github.workspace}}/build" \
-                  --config ${{matrix.build_type}} --parallel $threads
+          threads=`nproc`
+          cmake --build "${{github.workspace}}/build" \
+                --config ${{matrix.build_type}} --parallel $threads
 
       - name: Test
         working-directory: ${{github.workspace}}/build
@@ -85,8 +85,8 @@ jobs:
   build-macos:
     strategy:
       matrix:
-        os: [ macos-13, macos-14, macos-15 ]
-        build_type: [ Debug, Release ]
+        os: [macos-13, macos-14, macos-15]
+        build_type: [Debug, Release]
 
     name: Build and Test on MacOS
     runs-on: ${{matrix.os}}
@@ -95,16 +95,16 @@ jobs:
 
       - name: Configure CMake
         run: |
-            cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
-                  -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
-                  -DCMAKE_CXX_STANDARD=17 \
-                  -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
+          cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
+                -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                -DCMAKE_CXX_STANDARD=17 \
+                -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
 
       - name: Build
         run: |
-            threads=`sysctl -n hw.logicalcpu`
-            cmake --build "${{github.workspace}}/build" \
-                  --config ${{matrix.build_type}} --parallel $threads
+          threads=`sysctl -n hw.logicalcpu`
+          cmake --build "${{github.workspace}}/build" \
+                --config ${{matrix.build_type}} --parallel $threads
 
       - name: Test
         working-directory: ${{github.workspace}}/build
@@ -113,8 +113,8 @@ jobs:
   build-windows:
     strategy:
       matrix:
-        build_type: [ Debug, Release ]
-        os: [ windows-2022, windows-2025 ]
+        build_type: [Debug, Release]
+        os: [windows-2022, windows-2025]
 
     name: Build and Test on Windows
     runs-on: ${{matrix.os}}
@@ -123,16 +123,16 @@ jobs:
 
       - name: Configure CMake
         run: |
-            cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
-                  -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
-                  -DCMAKE_CXX_STANDARD=17 \
-                  -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
+          cmake -S "${{github.workspace}}" -B "${{github.workspace}}/build" \
+                -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+                -DCMAKE_CXX_STANDARD=17 \
+                -DANNOTATE_SNIPPETS_ENABLE_TESTING=ON
 
       - name: Build
         run: |
-            $threads = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
-            cmake --build "${{github.workspace}}/build" `
-                  --config ${{matrix.build_type}} --parallel $threads
+          $threads = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
+          cmake --build "${{github.workspace}}/build" `
+                --config ${{matrix.build_type}} --parallel $threads
         shell: pwsh
 
       - name: Test

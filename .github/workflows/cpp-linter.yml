@@ -2,7 +2,21 @@ name: cpp-linter
 
 on:
   push:
-    paths: ['**.c', '**.cpp', '**.h', '**.hpp', '**.cxx', '**.hxx', '**.cc', '**.hh', '**CMakeLists.txt', '**.cmake', '.clang-*', '.github/workflows/cpp-linter.yml']
+    paths:
+      [
+        "**.c",
+        "**.cpp",
+        "**.h",
+        "**.hpp",
+        "**.cxx",
+        "**.hxx",
+        "**.cc",
+        "**.hh",
+        "**CMakeLists.txt",
+        "**.cmake",
+        ".clang-*",
+        ".github/workflows/cpp-linter.yml",
+      ]
   # For pull requests, we always run this check.
   pull_request:
 
@@ -36,14 +50,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           # Use .clang-format config file
-          style: 'file'
+          style: "file"
           # Use .clang-tidy config file
-          tidy-checks: ''
+          tidy-checks: ""
           # only 'update' a single comment in a pull request's thread.
           thread-comments: ${{ github.event_name == 'pull_request' && 'update' }}
-          database: 'build'
+          database: "build"
           version: 18
-          ignore: '.github|build'
+          ignore: ".github|build"
           files-changed-only: false
           # Append checking results as part of workflow's job summary.
           step-summary: true
@@ -51,7 +65,7 @@ jobs:
           # specified the include path for cpp files), which causes clang-tidy to fail to find the
           # files included with `#include` when checking header files. Therefore, we explicitly
           # provide the include path for `clang-tidy`.
-          extra-args: '-I${{github.workspace}}/include'
+          extra-args: "-I${{github.workspace}}/include"
 
       - name: Fail fast?!
         if: steps.linter.outputs.checks-failed > 0

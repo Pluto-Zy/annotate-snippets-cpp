@@ -40,13 +40,13 @@ EmptyLineAfterAccessModifier: Never
 EmptyLineBeforeAccessModifier: Leave
 FixNamespaceComments: true
 IncludeCategories:
-  - Regex:    '<rang\.hpp>|"rang\.hpp"' # rang.hpp
+  - Regex: '<rang\.hpp>|"rang\.hpp"' # rang.hpp
     Priority: 2
-  - Regex:    '^((<|")(gtest|gmock)/)' # GoogleTest Headers
+  - Regex: '^((<|")(gtest|gmock)/)' # GoogleTest Headers
     Priority: 3
-  - Regex:    '^".*\.hpp"' # User Headers
+  - Regex: '^".*\.hpp"' # User Headers
     Priority: 1
-  - Regex:    '^<[^>]*>$' # STL Headers
+  - Regex: "^<[^>]*>$" # STL Headers
     Priority: 4
 IncludeBlocks: Regroup
 IndentAccessModifiers: false
