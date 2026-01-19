@@ -9,6 +9,7 @@ CPMAddPackage(
 include(GoogleTest)
 
 add_executable(annotate_snippets_tests
+    source_file_test.cpp
     source_location_test.cpp
     styled_string_view_test.cpp
     styled_string_test.cpp
