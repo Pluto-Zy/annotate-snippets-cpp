@@ -2,7 +2,6 @@
 #define ANNOTATE_SNIPPETS_RENDERER_HUMAN_RENDERER_HPP
 
 #include "annotate_snippets/annotated_source.hpp"
-#include "annotate_snippets/detail/diag/diag_entry_impl.hpp"
 #include "annotate_snippets/detail/diag/level.hpp"
 #include "annotate_snippets/detail/styled_string_impl.hpp"
 #include "annotate_snippets/diag.hpp"
@@ -249,10 +248,10 @@ public:
     }
 
     /// Appends the rendering of a single `DiagEntry` to the end of a `StyledString`.
-    template <class Level, class Derived>
+    template <class Level>
     void render_diag_entry(
         StyledString& render_target,
-        detail::DiagEntryImpl<Level, Derived>& diag_entry,
+        DiagEntry<Level>& diag_entry,
         unsigned max_line_num_len,
         bool is_secondary
     ) const {
@@ -306,12 +305,11 @@ public:
     /// is specified by `style_sheet`.
     template <
         class Level,
-        class Derived,
         class StyleSheet,
         std::enable_if_t<is_style_sheet<StyleSheet, Level>, int> = 0>
     void render_diag_entry(
         std::ostream& out,
-        detail::DiagEntryImpl<Level, Derived>& diag_entry,
+        DiagEntry<Level>& diag_entry,
         unsigned max_line_num_len,
         bool is_secondary,
         StyleSheet const& style_sheet
