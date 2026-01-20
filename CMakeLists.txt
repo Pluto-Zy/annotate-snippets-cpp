@@ -50,11 +50,12 @@ target_include_directories(annotate_snippets
         $<BUILD_INTERFACE:${rang_SOURCE_DIR}/include>
 )
 
-target_compile_options(annotate_snippets
-    PRIVATE
-        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra -Wpedantic -Werror>
-        $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+set(
+    ANTS_WARNING_OPTIONS
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra -Wpedantic -Werror>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
 )
+target_compile_options(annotate_snippets PRIVATE ${ANTS_WARNING_OPTIONS})
 
 target_compile_features(annotate_snippets PUBLIC cxx_std_17)
 
