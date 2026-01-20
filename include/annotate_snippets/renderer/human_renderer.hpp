@@ -396,10 +396,6 @@ private:
             return static_cast<unsigned>(anonymized_line_num.size());
         }
 
-        auto const source_trans = [&](AnnotatedSource& source) {
-            return compute_max_line_num_len(source);
-        };
-
         unsigned result = 0;
 
         // Primary diag entry.

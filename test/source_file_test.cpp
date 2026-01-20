@@ -579,7 +579,7 @@ void check_adjust_empty_span(SourceFile& source, SourceLocation loc) {
     SCOPED_TRACE(message);
 
     // Call `adjust_span()` to adjust the empty span.
-    LabeledSpan const span = source.adjust_span(LabeledSpan { loc, loc });
+    LabeledSpan const span = source.adjust_span(LabeledSpan { loc, loc, {} });
     EXPECT_TRUE(span.beg.is_fully_specified());
     EXPECT_TRUE(span.end.is_fully_specified());
     EXPECT_EQ(span.beg.line(), loc.line());
@@ -588,7 +588,7 @@ void check_adjust_empty_span(SourceFile& source, SourceLocation loc) {
     EXPECT_EQ(span.end.col(), loc.col() + 1);
 
     // Use the fully specified location to test again to check that no assertion is triggered.
-    LabeledSpan const span2 = source.adjust_span(LabeledSpan { span.beg, span.beg });
+    LabeledSpan const span2 = source.adjust_span(LabeledSpan { span.beg, span.beg, {} });
     EXPECT_TRUE(span2.beg.is_fully_specified());
     EXPECT_TRUE(span2.end.is_fully_specified());
     EXPECT_EQ(span2.beg, span.beg);
@@ -607,14 +607,14 @@ void check_adjust_span_end(SourceFile& source, SourceLocation end, SourceLocatio
     SCOPED_TRACE(message);
 
     // Call `adjust_span()` to adjust the span with only `end` specified.
-    LabeledSpan const span = source.adjust_span(LabeledSpan { SourceLocation(0, 0), end });
+    LabeledSpan const span = source.adjust_span(LabeledSpan { SourceLocation(0, 0), end, {} });
     EXPECT_TRUE(span.beg.is_fully_specified());
     EXPECT_TRUE(span.end.is_fully_specified());
     EXPECT_EQ(span.end.line(), expected_end.line());
     EXPECT_EQ(span.end.col(), expected_end.col());
 
     // Use the fully specified location to test again to check that no assertion is triggered.
-    LabeledSpan const span2 = source.adjust_span(LabeledSpan { span.beg, span.end });
+    LabeledSpan const span2 = source.adjust_span(LabeledSpan { span.beg, span.end, {} });
     EXPECT_TRUE(span2.beg.is_fully_specified());
     EXPECT_TRUE(span2.end.is_fully_specified());
     EXPECT_EQ(span2.beg, span.beg);
