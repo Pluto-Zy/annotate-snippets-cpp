@@ -22,4 +22,5 @@ add_executable(annotate_snippets_tests
     renderer/human_renderer_test/render_suggestion.cpp
 )
 target_link_libraries(annotate_snippets_tests PRIVATE annotate_snippets gtest_main)
+target_compile_options(annotate_snippets_tests PRIVATE ${ANTS_WARNING_OPTIONS})
 gtest_discover_tests(annotate_snippets_tests)
