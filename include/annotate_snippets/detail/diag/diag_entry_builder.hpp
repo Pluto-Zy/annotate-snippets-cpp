@@ -1,5 +1,5 @@
-#ifndef ANNOTATE_SNIPPETS_DETAIL_DIAG_DIAG_ENTRY_IMPL_HPP
-#define ANNOTATE_SNIPPETS_DETAIL_DIAG_DIAG_ENTRY_IMPL_HPP
+#ifndef ANNOTATE_SNIPPETS_DETAIL_DIAG_DIAG_ENTRY_BUILDER_HPP
+#define ANNOTATE_SNIPPETS_DETAIL_DIAG_DIAG_ENTRY_BUILDER_HPP
 
 #include "annotate_snippets/annotated_source.hpp"
 #include "annotate_snippets/detail/diag/level.hpp"
@@ -14,36 +14,46 @@ namespace ants::detail {
 /// Used in the implementation of `DiagEntry` and `Diag` to provide a consistent interface and
 /// facilitate chainable calls that behave appropriately.
 ///
-/// For more information, refer to the documentation comments of `DiagEntry`.
+/// `DiagEntryBuilder` provides a series of chainable methods for building diagnostic entries. These
+/// methods are forwarded to the corresponding methods of the `Derived` type. `Derived` must provide
+/// the following member functions, and their non-const overloads must return references to the
+/// corresponding member variables to ensure that their values can be modified:
+///
+/// - `get_level()`: Returns the error level of the current diagnostic entry.
+/// - `get_error_code()`: Returns the error code of the current diagnostic entry.
+/// - `get_diag_message()`: Returns the title message text of the current diagnostic entry.
+/// - `get_associated_sources()`: Returns the list of annotated source codes associated with the
+///   current diagnostic entry.
+///
+/// To reduce the number of member functions that need to be provided in the derived class,
+/// `DiagEntryBuilder` always passes `self()` as the argument to these member functions.
 template <class Level, class Derived>
-class DiagEntryImpl {
+class DiagEntryBuilder {
     static_assert(
         is_diagnostic_level<Level>,
         "The `Level` type cannot be used as a diagnostic level type, it must have a `title()` "
         "member function or an `title()` function found via ADL."
     );
 
+    auto self() const -> Derived const& {
+        return static_cast<Derived const&>(*this);
+    }
+
+    auto self() -> Derived& {
+        return static_cast<Derived&>(*this);
+    }
+
 public:
-    DiagEntryImpl() : level_() { }
-
-    explicit DiagEntryImpl(Level level) : level_(std::move(level)) { }
-
-    explicit DiagEntryImpl(Level level, StyledStringView diag_message) :
-        level_(std::move(level)), diag_message_(std::move(diag_message)) { }
-
-    explicit DiagEntryImpl(Level level, StyledStringView diag_message, std::string_view err_code) :
-        level_(std::move(level)), err_code_(err_code), diag_message_(std::move(diag_message)) { }
-
     auto level() const -> Level const& {
-        return level_;
+        return Derived::get_level(self());
     }
 
     auto level() -> Level& {
-        return level_;
+        return Derived::get_level(self());
     }
 
     void set_level(Level level) {
-        level_ = std::move(level);
+        Derived::get_level(self()) = std::move(level);
     }
 
     auto with_level(Level level) & -> Derived& {
@@ -57,11 +67,11 @@ public:
     }
 
     auto error_code() const -> std::string_view {
-        return err_code_;
+        return Derived::get_error_code(self());
     }
 
     void set_error_code(std::string_view err_code) {
-        err_code_ = err_code;
+        Derived::get_error_code(self()) = err_code;
     }
 
     auto with_error_code(std::string_view err_code) & -> Derived& {
@@ -75,15 +85,15 @@ public:
     }
 
     auto diag_message() const -> StyledStringView const& {
-        return diag_message_;
+        return Derived::get_diag_message(self());
     }
 
     auto diag_message() -> StyledStringView& {
-        return diag_message_;
+        return Derived::get_diag_message(self());
     }
 
     void set_diag_message(StyledStringView message) {
-        diag_message_ = std::move(message);
+        Derived::get_diag_message(self()) = std::move(message);
     }
 
     auto with_diag_message(StyledStringView message) & -> Derived& {
@@ -97,34 +107,26 @@ public:
     }
 
     auto associated_sources() const -> std::vector<AnnotatedSource> const& {
-        return associated_sources_;
+        return Derived::get_associated_sources(self());
     }
 
     auto associated_sources() -> std::vector<AnnotatedSource>& {
-        return associated_sources_;
+        return Derived::get_associated_sources(self());
     }
 
     void add_source(AnnotatedSource source) {
-        associated_sources_.push_back(std::move(source));
+        Derived::get_associated_sources(self()).push_back(std::move(source));
     }
 
     template <
         class... Args,
         std::enable_if_t<std::is_constructible_v<AnnotatedSource, Args...>, int> = 0>
     void add_source(Args&&... args) {
-        associated_sources_.emplace_back(std::forward<Args>(args)...);
+        Derived::get_associated_sources(self()).emplace_back(std::forward<Args>(args)...);
     }
 
     auto with_source(AnnotatedSource source) & -> Derived& {
         add_source(std::move(source));
-        return static_cast<Derived&>(*this);
-    }
-
-    template <
-        class... Args,
-        std::enable_if_t<std::is_constructible_v<AnnotatedSource, Args...>, int> = 0>
-    auto with_source(Args&&... args) & -> Derived& {
-        add_source(std::forward<Args>(args)...);
         return static_cast<Derived&>(*this);
     }
 
@@ -136,26 +138,19 @@ public:
     template <
         class... Args,
         std::enable_if_t<std::is_constructible_v<AnnotatedSource, Args...>, int> = 0>
+    auto with_source(Args&&... args) & -> Derived& {
+        add_source(std::forward<Args>(args)...);
+        return static_cast<Derived&>(*this);
+    }
+
+    template <
+        class... Args,
+        std::enable_if_t<std::is_constructible_v<AnnotatedSource, Args...>, int> = 0>
     auto with_source(Args&&... args) && -> Derived&& {
         add_source(std::forward<Args>(args)...);
         return static_cast<Derived&&>(*this);
     }
-
-private:
-    /// The error level of the current diagnostic entry (such as error, warning, note, or help).
-    Level level_;
-    /// The error code of the current diagnostic entry (optional; if empty, it is not displayed in
-    /// the rendered results).
-    std::string_view err_code_;
-    /// The title message text of the diagnostic entry. It is displayed in front of all annotated
-    /// source codes associated with this diagnostic entry.
-    StyledStringView diag_message_;
-    /// The annotated source codes associated with this diagnostic entry. The diagnostic entry may
-    /// not be associated with any source code, for example, "note:" usually appears as a secondary
-    /// diagnostic entry and is not associated with any source code (thus only displaying the title
-    /// information).
-    std::vector<AnnotatedSource> associated_sources_;
 };
 }  // namespace ants::detail
 
-#endif  // ANNOTATE_SNIPPETS_DETAIL_DIAG_DIAG_ENTRY_IMPL_HPP
+#endif  // ANNOTATE_SNIPPETS_DETAIL_DIAG_DIAG_ENTRY_BUILDER_HPP
